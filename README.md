@@ -14,7 +14,12 @@ A local inventory and sales application for a small electrical retail shop.
 
 ## Implemented features
 
-- Project initialized
+- Project initialized with Git
+- Static inventory dashboard layout
+- Responsive dashboard CSS foundation
+- FastAPI and SQLite backend setup
+- Flexible category API
+- Product API with category, unit, selling price, and reorder level
 
 
 ---
