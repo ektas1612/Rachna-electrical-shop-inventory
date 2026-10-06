@@ -15,3 +15,11 @@ A local inventory and sales application for a small electrical retail shop.
 ## Implemented features
 
 - Project initialized
+
+
+---
+
+Product = what you sell
+Purchase = stock coming in
+Sale = stock going out
+Available stock = total purchased − total sold
