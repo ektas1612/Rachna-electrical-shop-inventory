@@ -1,116 +1,173 @@
-import './App.css'
+import { useEffect, useState } from "react"
+import "./App.css"
 
-const products = [
-  {
-    id: 1,
-    name: "Havells 1.5 sq mm Wire",
-    category: "Wires",
-    stock: 10,
-    unit: "metres",
-    status: "In stock"
-  },
-  {
-    id: 2,
-    name: "Rigga Switch",
-    category: "Switches",
-    stock: 10,
-    unit: "pieces",
-    status: "Low stock"
-  },
-  {
-    id: 3,
-    name: "LED Bulb 12W",
-    category: "Lighting",
-    stock: 36,
-    unit: "pieces",
-    status: "In stock"
-  }
-]
+const API_URL = "http://127.0.0.1:8000"
 
 function App() {
+  const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [categoryName, setCategoryName] = useState("")
+  const [categoryMessage, setCategoryMessage] = useState("")
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      const [productsResponse, categoriesResponse] = await Promise.all([
+        fetch(`${API_URL}/products`),
+        fetch(`${API_URL}/categories`),
+      ])
+
+      const [productsData, categoriesData] = await Promise.all([
+        productsResponse.json(),
+        categoriesResponse.json(),
+      ])
+
+      setProducts(productsData)
+      setCategories(categoriesData)
+    }
+
+    loadDashboardData()
+  }, [])
+
+  async function addCategory(event) {
+    event.preventDefault()
+
+    if (categoryName.trim() === "") {
+      return
+    }
+
+    const response = await fetch(`${API_URL}/categories`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: categoryName.trim(),
+      }),
+    })
+
+    const data = await response.json()
+
+    if(!response.ok) {
+      setCategoryMessage(data.detail)
+      return
+    }
+
+    setCategories(
+      [...categories, data].sort((first, second) => 
+        first.name.localeCompar(second.name),
+      ),
+    )
+    setCategoryName("")
+    setCategoryMessage(`${data.name} added successfully`)
+  }
+
   return (
-    <div className='app-shell'>
-      <aside className='sidebar'>
-        <div className='brand'>
-          <span className='brand-mark'>E</span>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">E</span>
           <span>ElectraStock</span>
         </div>
 
         <nav>
-          <a className="nav-item active" href="#dashboard">Dashborard</a>
-          <a className="nav-item active" href="#dashboard">Products</a>
-          <a className="nav-item active" href="#dashboard">Purchases</a>
-          <a className="nav-item active" href="#dashboard">Sales</a>
-          <a className="nav-item active" href="#dashboard">Reports</a>
+          <a className="nav-item active" href="#dashboard">Dashboard</a>
+          <a className="nav-item" href="#products">Products</a>
+          <a className="nav-item" href="#purchases">Purchases</a>
+          <a className="nav-item" href="#sales">Sales</a>
+          <a className="nav-item" href="#reports">Reports</a>
         </nav>
 
-        <p className='sidebar-note'>Local inventory system</p>
+        <p className="sidebar-note">Local inventory system</p>
       </aside>
 
-      <main className='main-content'>
-        <header className='topbar'>
+      <main className="main-content">
+        <header className="topbar">
           <div>
-            <p className='eyebrow'>Overview</p>
+            <p className="eyebrow">Overview</p>
             <h1>Inventory dashboard</h1>
           </div>
 
-          <button className='primary-button'>+ Add product</button>
+          <button className="primary-button">+ Add product</button>
         </header>
 
-        <section className='summary-grid'>
-          <article className='summary-card'>
+        <section className="summary-grid">
+          <article className="summary-card">
             <p>Total products</p>
-            <strong>126</strong>
-            <span>Across 8 categories</span>
+            <strong>{products.length}</strong>
+            <span>Products in your catalogue</span>
           </article>
 
-          <article className='summary-card'>
-            <p>Stock value</p>
-            <strong>₹1,448,250</strong>
-            <span>Based on purchase prices</span>
+          <article className="summary-card">
+            <p>Product categories</p>
+            <strong>{categories.length}</strong>
+            <span>Flexible shop categories</span>
           </article>
 
-          <article className='summary-card warning'>
-            <p>Low-stock products</p>
-            <strong>6</strong>
-            <span>Need attention soon</span>
+          <article className="summary-card warning">
+            <p>Inventory status</p>
+            <strong>—</strong>
+            <span>Purchase and sales tracking comes next</span>
           </article>
         </section>
 
-        <section className='content-card' id='products'>
-          <div className='section-heading'>
+        <section className="content-card category-card">
+          <div className="section-heading">
             <div>
-              <h2>Products needing attention</h2>
-              <p>Review stock levels before placing your next order.</p>
+              <h2>Product categories</h2>
+              <p>Add categories whenever the shop starts selling a new type of item.</p>
             </div>
-            <button className='secondary-button'>View all products</button>
           </div>
 
-          <div className='table-wrapper'>
+          <form className="category-form" onSubmit={addCategory}>
+            <input 
+              value={categoryName}
+              onChange={(event) =>
+                setCategoryName(event.target.value)
+              }
+              placeholder="For example: Heaters"
+            />
+            <button className="primary-button" type="submit">
+              Add category
+            </button>
+          </form>
+
+          {categoryMessage && <p className="form-message">{categoryMessage}</p>}
+
+          <div className="category-list">
+            {categories.map((category) => (
+              <span className="category-chip" key={category.id}>
+                {category.name}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section className="content-card" id="products">
+          <div className="section-heading">
+            <div>
+              <h2>Product catalogue</h2>
+              <p>Products currently saved in your local database.</p>
+            </div>
+          </div>
+
+          <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
                   <th>Product</th>
                   <th>Category</th>
-                  <th>Available stock</th>
-                  <th>Status</th>
+                  <th>Selling price</th>
+                  <th>Reorder level</th>
                 </tr>
               </thead>
               <tbody>
                 {products.map((product) => (
                   <tr key={product.id}>
                     <td>{product.name}</td>
-                    <td>{product.category}</td>
+                    <td>{product.category_name}</td>
+                    <td>₹{product.selling_price}</td>
                     <td>
-                      {product.stock} {product.unit}
-                    </td>
-                    <td>
-                      <span className={
-                        product.status === "Low stock" ? "status low-stock": "status"
-                      }
-                      >
-                        {product.status}
-                      </span>
+                      {product.reorder_level} {product.unit}
                     </td>
                   </tr>
                 ))}
@@ -120,7 +177,6 @@ function App() {
         </section>
       </main>
     </div>
-    
   )
 }
 
