@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react"
 import "./App.css"
-
-const API_URL = "http://127.0.0.1:8000"
+import{
+  createCategory as createCategoryRequest,
+  createProduct as createProductRequest,
+  getCategories,
+  getProducts,
+} from "./services/api"
 
 function App() {
   const [products, setProducts] = useState([])
@@ -20,107 +24,86 @@ function App() {
   const [reorderLevel, setReorderLevel] = useState("")
   const [productMessage, setProductMessage] = useState("")
 
-  useEffect(() => {
-    async function loadDashboardData() {
-      const [productsResponse, categoriesResponse] = await Promise.all([
-        fetch(`${API_URL}/products`),
-        fetch(`${API_URL}/categories`),
-      ])
 
+  async function loadDashboardData() {
+    try {
       const [productsData, categoriesData] = await Promise.all([
-        productsResponse.json(),
-        categoriesResponse.json(),
+        getProducts(),
+        getCategories(),
       ])
-
+  
       setProducts(productsData)
       setCategories(categoriesData)
+    } catch (error) {
+      console.error(error)
     }
-
+  }
+  
+  useEffect(() => {
     loadDashboardData()
   }, [])
-
-  //------------------------- Add category feature ---------------------------------
-
+  
+  
   async function addCategory(event) {
     event.preventDefault()
-
+  
     if (categoryName.trim() === "") {
       return
     }
-
-    const response = await fetch(`${API_URL}/categories`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: categoryName.trim(),
-      }),
-    })
-
-    const data = await response.json()
-
-    if(!response.ok) {
-      setCategoryMessage(data.detail)
-      return
+  
+    try {
+      const data = await createCategoryRequest(categoryName.trim())
+  
+      setCategories(
+        [...categories, data].sort((first, second) =>
+          first.name.localeCompare(second.name),
+        ),
+      )
+      setCategoryName("")
+      setCategoryMessage(`${data.name} added successfully`)
+    } catch (error) {
+      setCategoryMessage(error.message)
     }
-
-    setCategories(
-      [...categories, data].sort((first, second) => 
-        first.name.localeCompar(second.name),
-      ),
-    )
-    setCategoryName("")
-    setCategoryMessage(`${data.name} added successfully`)
   }
-
-  // ---------------------------- Add product feature ------------------------------
-
+  
+  
   async function addProduct(event) {
     event.preventDefault()
-
-    if (productName.trim() === "" ||
-        productCategoryId === "" ||
-        Number(sellingPrice) < 0 ||
-        Number(reorderLevel) < 0
-      ) {
-        setProductMessage("Please complete all product details.")
-        return
+  
+    if (
+      productName.trim() === "" ||
+      productCategoryId === "" ||
+      Number(sellingPrice) < 0 ||
+      Number(reorderLevel) < 0
+    ) {
+      setProductMessage("Please complete all product details.")
+      return
     }
-
-    const response = await fetch(`${API_URL}/products`,{
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+  
+    try {
+      await createProductRequest({
         name: productName.trim(),
         category_id: Number(productCategoryId),
         unit: productUnit.trim(),
         selling_price: Number(sellingPrice),
         reorder_level: Number(reorderLevel),
-      }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      setProductMessage(data.detail)
-      return
+      })
+  
+      const productsData = await getProducts()
+  
+      setProducts(productsData)
+      setProductName("")
+      setProductCategoryId("")
+      setProductUnit("pieces")
+      setSellingPrice("")
+      setReorderLevel("")
+      setProductMessage("")
+      setShowProductForm(false)
+    } catch (error) {
+      setProductMessage(error.message)
     }
-
-    const productsResponse = await fetch(`${API_URL}/products`)
-    const productsData = await productsResponse.json()
-
-    setProducts(productsData)
-    setProductName("")
-    setProductCategoryId("")
-    setProductUnit("pieces")
-    setSellingPrice("")
-    setReorderLevel("")
-    setProductMessage("")
-    setShowProductForm(false)
   }
+
 
   return (
     // -------------------------- Header -------------------------------------
@@ -144,7 +127,27 @@ function App() {
         <p className="sidebar-note">Local inventory system</p>
       </aside>
 
-      {/* ------------------------- Add product section -------------------------------- */}
+      
+      {/* --------------------------- Dashboard -------------------------------- */}
+
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">Overview</p>
+            <h1>Inventory dashboard</h1>
+          </div>
+
+          {/*  ------------------------- Add product button ------------------------ */}
+
+          <button 
+            className="primary-button"
+            onClick={() => setShowProductForm(true)}
+          >
+            + Add product
+          </button>
+        </header>
+
+        {/* ------------------------- Add product section -------------------------------- */}
 
       {showProductForm && (
         <section className="content-card product-form-card">
@@ -230,24 +233,6 @@ function App() {
         </section>
       )}
 
-      {/* --------------------------- Dashboard -------------------------------- */}
-
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Overview</p>
-            <h1>Inventory dashboard</h1>
-          </div>
-
-          {/*  ------------------------- Add product button ------------------------ */}
-
-          <button 
-            className="primary-button"
-            onClick={() => setShowProductForm(true)}
-          >
-            + Add product
-          </button>
-        </header>
 
         {/* ------------------------ Product summary section ----------------------------- */}
 
