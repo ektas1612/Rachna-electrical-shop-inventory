@@ -1,8 +1,18 @@
-.venv/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+venv/
+.venv/
 *.db
-.env
+
+# Node
 node_modules/
 dist/
+
+# Env
+.env
+
+# Editors
+.vscode/
+.idea/
 .DS_Store
