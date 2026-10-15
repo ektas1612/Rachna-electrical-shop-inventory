@@ -1,17 +1,31 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getDashboard } from "../api/reports";
 
 const navItems = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/products", label: "Products" },
+  { to: "/wholesalers", label: "Wholesalers "},
+  { to: "/purchases", label: "Purchases "},
+  { to: "/sales", label: "Sales" },
+  { to: "/switchboards", label: "Switchboards" },
+  { to: "/customers", label: "Customers" },
+  { to: "/wholesaler-balances", label: "Wholesaler Ledger"},
+  { to: "/wholesaler-returns", label: "Wholesaler Returns"},
   // More will be added in later phases:
   // { to: "/purchases", label: "Purchases" },
-  // { to: "/sales", label: "Sales" },
+  
   // { to: "/switchboards", label: "Switch Boards" },
   // { to: "/customers", label: "Credit Customers" },
   // { to: "/reports", label: "Reports" },
 ];
 
 export default function MainLayout() {
+  const { data: dashboard } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => getDashboard({ trendDays: 14 }),
+    refetchInterval: 30000, // refresh every 30s as a safety net
+  });
   return (
     <div className="min-h-screen flex bg-slate-100">
       <aside className="w-56 bg-slate-900 text-slate-100 flex flex-col">
@@ -38,7 +52,7 @@ export default function MainLayout() {
         </nav>
         <div className="p-3 border-t border-slate-700 text-xs text-slate-400">
           Today's Sales
-          <div className="text-emerald-400 font-semibold text-base">₹ 0</div>
+          <div className="text-emerald-400 font-semibold text-base">₹ {Number(dashboard ?.today?.sales ?? 0).toFixed(2)}</div>
         </div>
       </aside>
 

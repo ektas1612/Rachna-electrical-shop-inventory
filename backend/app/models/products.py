@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
+from sqlalchemy.orm import relationship
 
 
 class Product(Base):
@@ -12,6 +13,13 @@ class Product(Base):
     name = Column(String, nullable=False, index=True)
     category = Column(String, nullable=False, index=True)   # e.g. "Switch", "Socket", "Wire"
     brand = Column(String, nullable=True)                    # e.g. "Anchor", "Havells"
+
+    # Wholesaler id
+    default_wholesaler_id = Column(
+        Integer, ForeignKey("wholesalers.id"), nullable=True, index=True
+    )
+
+    default_wholesaler = relationship("Wholesaler")
 
     # Units
     unit = Column(String, nullable=False, default="piece")   # "piece", "meter", "box"

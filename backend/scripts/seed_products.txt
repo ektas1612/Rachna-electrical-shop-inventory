@@ -1,0 +1,157 @@
+LED Surya 18 W	170	SA
+LED Wipro 15 W	135	SV
+LED Surya 15 W	125	SA
+LED Wipro 12 W	85	SV
+LED Surya 12 W	94	SA
+LED Wipro 20 W	195	SV
+LED Wipro 9 W	45	SV
+LED Wipro 15 W LED Emergency	370	
+LED Wipro 9 W LED Emergency	250	SV
+LED Surya 10 W	50.5	SA
+LED Surya 0.5 W	24.5	SA
+LED Wipro 12 W LED Emergency	310	SA
+Tube Surya 40 W	49.37	SA
+Tube Surya 36 W	42.03	SA
+Tube Wipro 22 W LED	117	SV
+Tube Surya 22 W LED	120	SA
+Tube Surya 25 W LED	163	
+Tube Surya 20 W LED	94.25	SA
+Switch Rigga 16 AMP	49.3	SA
+Switch Rigga 6 AMP	9.8	SA
+Switch Klick 6 AMP	8.6	SA
+Switch Anchor 16 AMP	69.03	SA
+Switch Bed Rigga	14.5	SA
+Rigga Combined	87	
+Switch Anchor 6 AMP	12.39	SA
+Socket Anchor 16 AMP	72.57	SA
+Socket Anchor 6 AMP	24.19	SA
+Socket Rigga 16 AMP	55.1	SA
+Socket Rigga 6 AMP	19.6	SA
+Socket Klick 6 AMP	16.8	SV
+16 Amp Combined with Box	104.4	SA
+Cona Modular 5 Amp Switch	16.5	
+Cona Modular 5 Amp Socket	37.5	
+Wire Rigga Al 1.5	264	
+Wire Rigga Al 2.5 mm	538	SA
+Wire Vijaya Al 2.5 mm	270	
+Wire Rigga Al 4 mm	738	SA
+Wire Vijaya 4 mm	387	
+Wire Rigga Al 6 mm	1142	SA
+Wire Vijaya 40/76 Al	223.3	
+Wire Vijaya 23/76 Al	143	
+Wire RK 2.5 mm Copper	2972	
+Wire Rigga Copper 0.75 mm	1116	
+Wire Rigga Copper 1 mm	1398	SA
+Wire Montez Copper 1 mm	910	
+Wire Rigga Copper 1.5 mm	2195	SA
+Wire Montez Copper 1.5 mm	1320	
+Wire Rigga Copper 18/76	545.78	SA
+Wire Rigga Copper 30/76	934	SA
+MCB Rigga DP 32 AMP	162.4	SA
+MCB Rigga 32 AMP	70.76	SA
+MCB Rigga 16 AMP	70.76	SA
+Anchor MCB	108	
+MCB Rigga 25 AMP	70.76	SA
+MCB Box Rigga	30.45	SA
+Casing Box	4.3	SA
+Casing Patti 25 mm	30.74	SA
+Casing Patti 20 mm	18	
+25 mm Pipe Rigga LMS Red/Yellow	46.4	SA
+25 mm Pipe 1.5 mm Rigga	42.92	SA
+19 mm Pipe	20	SV
+Flexible Pipe 25 mm	267	
+Flexible Pipe 20 mm	300	
+25 mm Band Rigga	6.96	SA
+19 mm Band Rigga	4.64	
+25 mm Deep Junction	7	SA
+25 mm Deep Junction Rigga	9.8	
+25 mm 3 Way Junction Box	11	SA
+Casing Khila	13.92	SA
+Cable Clip 4 mm	12.76	SA
+Cable Clip 6 mm	17.4	SA
+Cable Clip 8 mm	23.2	SA
+Cable Clip 10 mm	39.44	SA
+Cable Clip 12 mm	59.74	
+Cable Clip 20 mm	101.18	
+Cable Clip 25 mm	157.18	SA
+20 mm Elbow	1.74	
+Board Sunmica 6*8	27.3	SA
+Board Sunmica 7*4	19.5	SA
+Board Sunmica 8*10	36	SA
+1 Way	10.15	
+Board Orange 4 Way 6 AMP	21	SA
+Board Orange 2 Way 6 AMP	16	SV
+Board Orange 6 Way 6 AMP	38	SA
+Board Orange 8 Way 6 AMP	44	SA
+Board Orange 10 Way 6 AMP	50	SA
+Board Orange 4 Way 16 AMP		
+15 + 5 Orange	46	
+Board Orange 2 Way 16 AMP	24	SA
+Starter Havells 120*150	283	
+Capacitor Havells 36	121	
+Capacitor Havells 50	166.38	
+Capacitor Havells 2.5	30.74	SA
+Capacitor Havells 3.15	33.63	SA
+Capacitor Havells 4	35.4	SA
+Capacitor Havells 6	45.31	SA
+Capacitor Havells 8	50	SA
+Capacitor Havells 10	53.1	SA
+Capacitor Klick 3.15	21.5	SA
+Holder Multi Rigga	8.12	SA
+Holder Pendent Rigga	7.54	SA
+Anchor Angle Holder	28.62	
+Cona Angle Holder Modular	26.66	
+Holder Angle Rigga	15.66	SA
+Holder Batten Rigga	15.66	SA
+Holder Switch	10.5	SV
+Holder Socket	13.5	SV
+Rigga Holder Redix Multi	16.24	
+Rigga Holder Redix Pendent	13.34	
+Holder Sconce Pendent	13	SV
+Anchor Tape	8.92	
+Holder Sconce Multi	13.5	SV
+Tape Rigga	8.12	SA
+2 Pin Top 6 AMP Klick	8.5	SV
+3 Pin Top 6 AMP Rigga	26.68	SA
+3 Pin Top 6 AMP Anchor	46.61	SA
+3 Pin Top 16 AMP Rigga	47.56	SA
+3 Pin Top 16 AMP Anchor	61.36	SA
+Ceiling Rose Rigga	13.34	SA
+Fuse Rigga	20.88	SA
+Indicator Rigga	11.6	SA
+Tester Shaanthi Rigga	17.4	SA
+Tester Taparia	44.2	SA
+Heater Bada	160	SV
+Heater Surahi	120	SV
+Heater Mota	120	SV
+Heater Plate 7'	35	SV
+Heater Plate 6'6'	20.66	SV
+Heater Chini Connector	13.29	SV
+DP Switch Rigga	99.18	SA
+Coil 1500 W Klick	29	SV
+Coil 1500 W Rigga	24.36	SA
+Rigga Single Adapter	11.6	SA
+Rigga Parallel Adapter	12.18	SA
+Rigga Regulator Dimmer	52.78	SA
+Rigga Regulator Step	66.7	SA
+Anchor Regulator Dimmer	161.66	SA
+Rigga Pump	108	SA
+Local Pump	81.6	SV
+Blade 16x5 Casco	90	SV
+Grip 32	24	SA
+Rigga I-20	116	SA
+Rigga I-30	121	
+Pye Plier	180	
+Taparia Plier	229	
+Taparia Cutter	62	
+Pye & Venus Cutter	50	
+Round Plate	3.6	
+Polar Fan Radiant	1562	
+12" Blade	32	
+Dyson Fan	876	
+Surya Fan	1539	
+Klick Multi Plug Victor	23	
+Surya Torch	122	
+5 to 15 Multiplug	37.7	
+Bell Press Fit	123	
+Rigga Fresh Air 12"	966

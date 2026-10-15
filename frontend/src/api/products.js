@@ -34,3 +34,13 @@ export const listCategories = async () => {
     const {data} = await api.get("/api/products/meta/categories");
     return data;
 };
+
+export const getProductBatches = async (productId) => {
+  const { data } = await api.get(`/api/products/${productId}/batches`);
+  return data;
+};
+
+export const adjustStock = async (productId, payload) => {
+  const { data } = await api.post(`/api/products/${productId}/adjust-stock`, payload);
+  return data;
+};
