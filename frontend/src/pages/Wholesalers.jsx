@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, Users, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
 import {
   listWholesalers,
   createWholesaler,
@@ -7,15 +10,52 @@ import {
   deactivateWholesaler,
 } from "../api/wholesalers";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Card } from "@/components/ui/card";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
+
 const emptyForm = { name: "", phone: "", notes: "" };
 
 export default function Wholesalers() {
   const queryClient = useQueryClient();
+
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errorMsg, setErrorMsg] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const { data: wholesalers = [], isLoading } = useQuery({
     queryKey: ["wholesalers", { search }],
@@ -27,20 +67,32 @@ export default function Wholesalers() {
 
   const createMutation = useMutation({
     mutationFn: createWholesaler,
-    onSuccess: () => { invalidate(); closeForm(); },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Wholesaler added");
+      closeForm();
+    },
     onError: (e) => setErrorMsg(e.message),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }) => updateWholesaler(id, payload),
-    onSuccess: () => { invalidate(); closeForm(); },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Wholesaler updated");
+      closeForm();
+    },
     onError: (e) => setErrorMsg(e.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deactivateWholesaler,
-    onSuccess: invalidate,
-    onError: (e) => setErrorMsg(e.message),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Wholesaler deactivated");
+      setDeleteTarget(null);
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   function closeForm() {
@@ -58,7 +110,11 @@ export default function Wholesalers() {
   }
 
   function openEdit(w) {
-    setForm({ name: w.name, phone: w.phone || "", notes: w.notes || "" });
+    setForm({
+      name: w.name,
+      phone: w.phone || "",
+      notes: w.notes || "",
+    });
     setEditingId(w.id);
     setShowForm(true);
     setErrorMsg("");
@@ -81,152 +137,179 @@ export default function Wholesalers() {
     else createMutation.mutate(payload);
   }
 
-  function handleDelete(w) {
-    if (confirm(`Deactivate "${w.name}"?`)) deleteMutation.mutate(w.id);
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Wholesalers</h2>
-        <button
-          onClick={openAdd}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + Add Wholesaler
-        </button>
-      </div>
-
-      <input
-        type="text"
-        placeholder="Search by name or phone…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-4 w-full max-w-sm px-3 py-2 border border-slate-300 rounded text-sm"
+      <PageHeader
+        title="Wholesalers"
+        subtitle="The suppliers you buy from"
+        actions={
+          <Button onClick={openAdd}>
+            <Plus className="size-4" />
+            Add Wholesaler
+          </Button>
+        }
       />
 
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : wholesalers.length === 0 ? (
-        <div className="text-slate-500">
-          No wholesalers yet. Click "Add Wholesaler".
+      <Card className="p-3 mb-4">
+        <div className="relative w-72">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-4 py-2">Name</th>
-                <th className="text-left px-4 py-2">Phone</th>
-                <th className="text-left px-4 py-2">Notes</th>
-                <th className="text-right px-4 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wholesalers.map((w) => (
-                <tr key={w.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 font-medium">{w.name}</td>
-                  <td className="px-4 py-2 text-slate-600">{w.phone || "—"}</td>
-                  <td className="px-4 py-2 text-slate-600 truncate max-w-xs">
-                    {w.notes || "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2">
-                    <button
-                      onClick={() => openEdit(w)}
-                      className="text-emerald-600 hover:underline text-xs"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(w)}
-                      className="text-red-600 hover:underline text-xs"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </Card>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold mb-4">
-              {editingId ? "Edit Wholesaler" : "Add Wholesaler"}
-            </h3>
-
-            {errorMsg && (
-              <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Name *
-                </span>
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  className="w-full border rounded px-2 py-1"
-                />
-              </label>
-
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Phone
-                </span>
-                <input
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  className="w-full border rounded px-2 py-1"
-                />
-              </label>
-
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Notes
-                </span>
-                <textarea
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full border rounded px-2 py-1"
-                />
-              </label>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-                >
-                  {createMutation.isPending || updateMutation.isPending
-                    ? "Saving…"
-                    : editingId
-                    ? "Save changes"
-                    : "Create"}
-                </button>
-              </div>
-            </form>
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={4} cols={4} />
           </div>
-        </div>
-      )}
+        ) : wholesalers.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No wholesalers yet"
+            description="Add the shops you buy stock from to start recording purchases."
+            action={
+              <Button onClick={openAdd}>
+                <Plus className="size-4" />
+                Add Wholesaler
+              </Button>
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="text-right w-30">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {wholesalers.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell className="font-medium">{w.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {w.phone || "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground truncate max-w-md">
+                    {w.notes || "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        onClick={() => openEdit(w)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(w)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Dialog open={showForm} onOpenChange={(o) => !o && closeForm()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? "Edit Wholesaler" : "Add Wholesaler"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {errorMsg && (
+            <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Name *</Label>
+              <Input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                name="notes"
+                value={form.notes}
+                onChange={handleChange}
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={closeForm}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                {createMutation.isPending || updateMutation.isPending
+                  ? "Saving…"
+                  : editingId
+                  ? "Save changes"
+                  : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate this wholesaler?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteTarget?.name}” will be hidden from listings. Existing
+              purchases and balances are kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate(deleteTarget.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

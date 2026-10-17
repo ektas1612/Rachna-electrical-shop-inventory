@@ -1,8 +1,34 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Plus, Undo2, X } from "lucide-react";
+
 import { listReturns } from "../api/wholesalerReturns";
 import { listWholesalers } from "../api/wholesalers";
 import WholesalerReturnForm from "../components/WholesalerReturnForm";
+
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
 
 export default function WholesalerReturns() {
   const [showForm, setShowForm] = useState(false);
@@ -28,94 +54,127 @@ export default function WholesalerReturns() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">
-          Wholesaler Returns
-        </h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + New Return
-        </button>
-      </div>
+      <PageHeader
+        title="Wholesaler Returns"
+        subtitle="Stock sent back to suppliers"
+        actions={
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="size-4" />
+            New Return
+          </Button>
+        }
+      />
 
-      <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-end text-sm">
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">Wholesaler</span>
-          <select
-            value={wholesalerFilter}
-            onChange={(e) => setWholesalerFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded"
-          >
-            <option value="">All wholesalers</option>
-            {wholesalers.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {wholesalerFilter && (
-          <button
-            onClick={() => setWholesalerFilter("")}
-            className="text-xs text-slate-500 hover:text-slate-700 underline pb-2"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Wholesaler</Label>
+            <Select
+              value={wholesalerFilter}
+              onValueChange={setWholesalerFilter}
+            >
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="All wholesalers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All wholesalers</SelectItem>
+                {wholesalers.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {!isLoading && returns.length > 0 && (
-        <div className="text-sm text-slate-600 mb-2">
-          Showing <b>{returns.length}</b> return
-          {returns.length !== 1 ? "s" : ""} • Total:{" "}
-          <b>₹ {totalReturned.toFixed(2)}</b>
+          {wholesalerFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setWholesalerFilter("")}
+            >
+              <X className="size-3.5" />
+              Clear
+            </Button>
+          )}
+
+          {!isLoading && returns.length > 0 && (
+            <div className="ml-auto text-right">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                Filtered total
+              </div>
+              <div className="text-lg font-semibold text-red-600">
+                ₹ {totalReturned.toFixed(2)}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </Card>
 
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : returns.length === 0 ? (
-        <div className="text-slate-500">No returns yet.</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-4 py-2">Date</th>
-                <th className="text-left px-4 py-2">Wholesaler</th>
-                <th className="text-left px-4 py-2">Reference</th>
-                <th className="text-right px-4 py-2">Items</th>
-                <th className="text-right px-4 py-2">Total ₹</th>
-                <th className="text-left px-4 py-2">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={4} cols={5} />
+          </div>
+        ) : returns.length === 0 ? (
+          <EmptyState
+            icon={Undo2}
+            title={wholesalerFilter ? "No returns for this wholesaler" : "No returns yet"}
+            description={
+              wholesalerFilter
+                ? "Try clearing the filter."
+                : "Returns reduce what you owe the wholesaler."
+            }
+            action={
+              !wholesalerFilter && (
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="size-4" />
+                  New Return
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Wholesaler</TableHead>
+                <TableHead>Reference</TableHead>
+                <TableHead className="text-right">Items</TableHead>
+                <TableHead className="text-right">Total ₹</TableHead>
+                <TableHead>Notes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {returns.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{r.return_date}</td>
-                  <td className="px-4 py-2 font-medium">
+                <TableRow key={r.id}>
+                  <TableCell className="text-muted-foreground">
+                    {r.return_date}
+                  </TableCell>
+                  <TableCell className="font-medium">
                     {r.wholesaler_name || `#${r.wholesaler_id}`}
-                  </td>
-                  <td className="px-4 py-2 text-slate-600">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground font-mono text-xs">
                     {r.reference || "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
                     {r.items?.length ?? 0}
-                  </td>
-                  <td className="px-4 py-2 text-right font-medium text-red-600">
-                    ₹ {Number(r.total_amount).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-xs text-slate-500 truncate max-w-[200px]">
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                      ₹ {Number(r.total_amount).toFixed(2)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground truncate max-w-60">
                     {r.notes || ""}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
       {showForm && (
         <WholesalerReturnForm onClose={() => setShowForm(false)} />

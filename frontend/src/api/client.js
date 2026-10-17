@@ -1,11 +1,14 @@
 import axios from "axios";
 
+const baseURL = import.meta.env.DEV
+  ? "http://localhost:8000"
+  : "";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
+  baseURL,
   headers: { "Content-Type": "application/json" },
 });
 
-// Central place to add auth tokens later, log errors, etc.
 api.interceptors.response.use(
   (response) => response,
   (error) => {

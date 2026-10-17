@@ -138,6 +138,7 @@ def create_payment(db: Session, data: WholesalerPaymentCreate) -> WholesalerPaym
         wholesaler_id=data.wholesaler_id,
         amount=data.amount,
         payment_mode=data.payment_mode,
+        reference=data.reference, 
         notes=data.notes,
     )
     if data.payment_date:

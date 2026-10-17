@@ -1,10 +1,16 @@
 import api from "./client";
 
-export const listProducts = async ({ search, category, includeInactive } = {}) => {
+export const listProducts = async ({ 
+  search, 
+  category, 
+  includeInactive,
+  sortBy,
+ } = {}) => {
   const params = {};
   if (search) params.search = search;
   if (category) params.category = category;
   if (includeInactive) params.include_inactive = true;
+  if (sortBy) params.sort_by = sortBy;
 
   const { data } = await api.get("/api/products", { params });
   return data;

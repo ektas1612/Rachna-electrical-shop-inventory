@@ -1,10 +1,40 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
+
 import { listProducts } from "../api/products";
 import {
   buildSwitchboard,
   switchboardNameSuggestions,
 } from "../api/switchboards";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -46,7 +76,6 @@ export default function BuildSwitchboardModal({ onClose }) {
   const productsInCategory = (cat) =>
     products.filter((p) => p.category === cat);
 
-  // Estimated material cost based on latest batch cost per product
   const estimatedCost = useMemo(() => {
     let total = 0;
     for (const line of items) {
@@ -80,6 +109,7 @@ export default function BuildSwitchboardModal({ onClose }) {
       queryClient.invalidateQueries({ queryKey: ["switchboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["switchboard-name-suggestions"] });
+      toast.success("Switchboard built");
       onClose();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -108,7 +138,7 @@ export default function BuildSwitchboardModal({ onClose }) {
         );
     }
 
-    const payload = {
+    mutation.mutate({
       name: name.trim(),
       listed_price: Number(listedPrice),
       built_date: builtDate,
@@ -118,125 +148,103 @@ export default function BuildSwitchboardModal({ onClose }) {
         product_id: Number(l.product_id),
         quantity: Number(l.quantity),
       })),
-    };
-
-    mutation.mutate(payload);
+    });
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 my-8">
-        <h3 className="text-lg font-bold mb-4">Build Switchboard</h3>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-275! max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Build Switchboard</DialogTitle>
+        </DialogHeader>
 
         {errorMsg && (
-          <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
+          <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
             {errorMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Header */}
           <div className="grid grid-cols-4 gap-3">
-            <label className="block col-span-2">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Board name *
-              </span>
-              <input
+            <div className="col-span-2 space-y-1.5">
+              <Label>Board name *</Label>
+              <Input
                 list="board-name-suggestions"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. 6-module wooden"
                 required
-                className="w-full border rounded px-2 py-1"
               />
               <datalist id="board-name-suggestions">
                 {nameSuggestions.map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name} (built {s.times_built}×)
-                  </option>
+                  <option key={s.name} value={s.name} />
                 ))}
               </datalist>
-            </label>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Listed price ₹ *
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Listed price ₹ *</Label>
+              <Input
                 type="number"
                 min="0"
                 step="0.01"
                 value={listedPrice}
                 onChange={(e) => setListedPrice(e.target.value)}
                 required
-                className="w-full border rounded px-2 py-1 text-right"
+                className="text-right"
               />
-            </label>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Built date
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Built date</Label>
+              <Input
                 type="date"
                 value={builtDate}
                 onChange={(e) => setBuiltDate(e.target.value)}
-                className="w-full border rounded px-2 py-1"
               />
-            </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-4 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Code prefix
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Code prefix</Label>
+              <Input
                 value={codePrefix}
                 onChange={(e) => setCodePrefix(e.target.value)}
-                className="w-full border rounded px-2 py-1"
               />
-            </label>
-            <label className="block col-span-3">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Notes
-              </span>
-              <input
+            </div>
+            <div className="col-span-3 space-y-1.5">
+              <Label>Notes</Label>
+              <Input
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full border rounded px-2 py-1"
+                placeholder="Optional"
               />
-            </label>
+            </div>
           </div>
 
-          {/* Components */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Components used
-              </span>
-              <button
-                type="button"
-                onClick={addLine}
-                className="text-emerald-600 hover:underline text-xs"
-              >
-                + Add component
-              </button>
+              <Label>Components used</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={addLine}>
+                <Plus className="size-3.5" />
+                Add component
+              </Button>
             </div>
 
-            <div className="border rounded overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600 text-xs">
-                  <tr>
-                    <th className="text-left px-2 py-2 w-32">Category</th>
-                    <th className="text-left px-2 py-2">Product</th>
-                    <th className="text-right px-2 py-2 w-24">Qty</th>
-                    <th className="text-right px-2 py-2 w-24">Stock</th>
-                    <th className="text-right px-2 py-2 w-28">Est. cost</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <Card className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-32.5">Category</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="w-20 text-right">Qty</TableHead>
+                    <TableHead className="w-16 text-right">Stock</TableHead>
+                    <TableHead className="w-28 text-right">Est. cost</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {items.map((line, i) => {
                     const p = productMap[line.product_id];
                     const qty = Number(line.quantity) || 0;
@@ -245,54 +253,57 @@ export default function BuildSwitchboardModal({ onClose }) {
                     const overStock = p && qty > Number(p.current_stock);
 
                     return (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="px-2 py-1">
-                          <select
+                      <TableRow key={i}>
+                        <TableCell className="p-1">
+                          <Select
                             value={line.category}
-                            onChange={(e) =>
-                              updateLine(i, {
-                                category: e.target.value,
-                                product_id: "",
-                              })
+                            onValueChange={(v) =>
+                              updateLine(i, { category: v, product_id: "" })
                             }
-                            className="w-full border rounded px-1 py-1"
                           >
-                            <option value="">— Category —</option>
-                            {categoryList.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <select
-                            value={line.product_id}
-                            onChange={(e) =>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryList.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Select
+                            value={line.product_id ? String(line.product_id) : ""}
+                            onValueChange={(v) =>
                               updateLine(i, {
-                                product_id: e.target.value
-                                  ? Number(e.target.value)
-                                  : "",
+                                product_id: v ? Number(v) : "",
                               })
                             }
                             disabled={!line.category}
-                            className="w-full border rounded px-1 py-1 disabled:bg-slate-100"
                           >
-                            <option value="">
-                              {line.category
-                                ? "— Select product —"
-                                : "Pick category first"}
-                            </option>
-                            {productsInCategory(line.category).map((prod) => (
-                              <option key={prod.id} value={prod.id}>
-                                {prod.name}
-                                {prod.brand ? ` (${prod.brand})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <input
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue
+                                placeholder={
+                                  line.category
+                                    ? "Select product"
+                                    : "Pick category first"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productsInCategory(line.category).map((prod) => (
+                                <SelectItem key={prod.id} value={String(prod.id)}>
+                                  {prod.name}
+                                  {prod.brand ? ` (${prod.brand})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Input
                             type="number"
                             min="1"
                             step="1"
@@ -300,76 +311,66 @@ export default function BuildSwitchboardModal({ onClose }) {
                             onChange={(e) =>
                               updateLine(i, { quantity: e.target.value })
                             }
-                            className={`w-full border rounded px-1 py-1 text-right ${
+                            className={`h-8 text-right text-xs ${
                               overStock ? "border-red-500" : ""
                             }`}
                           />
-                        </td>
-                        <td
-                          className={`px-2 py-1 text-right text-xs ${
+                        </TableCell>
+                        <TableCell
+                          className={`p-1 text-right text-xs ${
                             overStock
                               ? "text-red-600 font-bold"
-                              : "text-slate-500"
+                              : "text-muted-foreground"
                           }`}
                         >
                           {p ? Number(p.current_stock) : "—"}
-                        </td>
-                        <td className="px-2 py-1 text-right text-xs text-slate-600">
+                        </TableCell>
+                        <TableCell className="p-1 text-right text-xs text-muted-foreground">
                           ₹ {lineCost.toFixed(2)}
-                        </td>
-                        <td className="px-2 py-1 text-center">
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
                           {items.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:text-destructive"
                               onClick={() => removeLine(i)}
-                              className="text-red-500 hover:text-red-700 text-xs"
                             >
-                              ✕
-                            </button>
+                              <X className="size-3.5" />
+                            </Button>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200 bg-slate-50">
-                    <td colSpan={4} className="px-2 py-2 text-right text-xs text-slate-600">
-                      Estimated material cost
-                    </td>
-                    <td className="px-2 py-2 text-right font-bold">
-                      ₹ {estimatedCost.toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
 
-            <p className="text-xs text-slate-500 mt-1">
-              Est. cost uses the latest FIFO cost per product. The actual cost
+              <div className="border-t bg-muted/30 px-4 py-2 flex justify-end gap-4 text-sm">
+                <span className="text-muted-foreground">
+                  Estimated material cost
+                </span>
+                <span className="font-semibold">₹ {estimatedCost.toFixed(2)}</span>
+              </div>
+            </Card>
+
+            <p className="text-xs text-muted-foreground mt-1">
+              Est. cost uses the latest FIFO cost per product. Actual cost
               recorded on save uses FIFO consumption and may differ slightly.
             </p>
           </div>
 
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-            >
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Building…" : "Build Board"}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

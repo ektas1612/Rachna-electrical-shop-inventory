@@ -1,5 +1,17 @@
-import { Fragment, useState, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Plus,
+  Search,
+  Package,
+  Pencil,
+  Trash2,
+  SlidersHorizontal,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
+import { toast } from "sonner";
+
 import {
   listProducts,
   createProduct,
@@ -9,6 +21,62 @@ import {
   getProductBatches,
 } from "../api/products";
 import AdjustStockModal from "../components/AdjustStockModal";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
+
+const DEFAULT_CATEGORIES = [
+  "Switch",
+  "Socket",
+  "MCB",
+  "Wire",
+  "Fan",
+  "Light",
+  "Bulb",
+  "Switch Board",
+  "Regulator",
+  "Tools",
+  "Other",
+];
 
 const emptyForm = {
   name: "",
@@ -21,39 +89,73 @@ const emptyForm = {
   mid_stock_threshold: 30,
 };
 
-const DEFAULT_CATEGORIES = [
-  "Switch",
-  "Socket",
-  "Other",
-];
-
 export default function Products() {
   const queryClient = useQueryClient();
+
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errorMsg, setErrorMsg] = useState("");
   const [addingNewCategory, setAddingNewCategory] = useState(false);
+
   const [expandedId, setExpandedId] = useState(null);
   const [adjustProduct, setAdjustProduct] = useState(null);
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterBrand, setFilterBrand] = useState("");
-  const [filterSupplier, setFilterSupplier] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [sortBy, setSortBy] = useState("");
+  const [stockStatus, setStockStatus] = useState(""); // "", "low", "out", "in"
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products", { search }],
-    queryFn: () => listProducts({ search }),
+    queryKey: ["products", { search, sortBy }],
+    queryFn: () => listProducts({ search, sortBy }),
   });
+
+  const { data: usedCategories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+  });
+
+  const allCategories = useMemo(() => {
+    const fromProducts = products.map((p) => p.category).filter(Boolean);
+    const combined = new Set([
+      ...DEFAULT_CATEGORIES,
+      ...usedCategories,
+      ...fromProducts,
+    ]);
+    return Array.from(combined).sort();
+  }, [products, usedCategories]);
+
+  const allBrands = useMemo(() => {
+    const s = new Set(products.map((p) => p.brand).filter(Boolean));
+    return Array.from(s).sort();
+  }, [products]);
+
+  const allSuppliers = useMemo(() => {
+    const s = new Set(products.map((p) => p.supplier_name).filter(Boolean));
+    return Array.from(s).sort();
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (filterCategory && p.category !== filterCategory) return false;
       if (filterBrand && p.brand !== filterBrand) return false;
       if (filterSupplier && p.supplier_name !== filterSupplier) return false;
+
+      if (stockStatus) {
+        const stock = Number(p.current_stock);
+        const low = Number(p.low_stock_threshold);
+        const mid = Number(p.mid_stock_threshold);
+        if (stockStatus === "out" && stock > 0) return false;
+        if (stockStatus === "low" && !(stock > 0 && stock <= low)) return false;
+        if (stockStatus === "in" && !(stock > mid)) return false;
+      }
       return true;
     });
-  }, [products, filterCategory, filterBrand, filterSupplier]);
+  }, [products, filterCategory, filterBrand, filterSupplier, stockStatus]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -64,6 +166,7 @@ export default function Products() {
     mutationFn: createProduct,
     onSuccess: () => {
       invalidate();
+      toast.success("Product created");
       closeForm();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -73,6 +176,7 @@ export default function Products() {
     mutationFn: ({ id, payload }) => updateProduct(id, payload),
     onSuccess: () => {
       invalidate();
+      toast.success("Product updated");
       closeForm();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -80,8 +184,12 @@ export default function Products() {
 
   const deleteMutation = useMutation({
     mutationFn: deactivateProduct,
-    onSuccess: invalidate,
-    onError: (e) => setErrorMsg(e.message),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Product deactivated");
+      setDeleteTarget(null);
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   function closeForm() {
@@ -131,8 +239,8 @@ export default function Products() {
 
     const payload = {
       ...form,
-      category: form.category.trim(),
       name: form.name.trim(),
+      category: form.category.trim(),
       brand: form.brand?.trim() || null,
       pieces_per_box: Number(form.pieces_per_box) || 1,
       selling_price: Number(form.selling_price),
@@ -140,215 +248,438 @@ export default function Products() {
       mid_stock_threshold: Number(form.mid_stock_threshold),
     };
 
+    if (!payload.category) {
+      setErrorMsg("Please select or type a category.");
+      return;
+    }
+
     if (editingId) {
       updateMutation.mutate({ id: editingId, payload });
     } else {
       createMutation.mutate(payload);
     }
-
-    if (payload.category === "__new__" || !payload.category) {
-      setErrorMsg("Please select or type a category.");
-      return;
-    }
   }
 
-  function handleDelete(p) {
-    if (confirm(`Deactivate "${p.name}"? It won't be shown in listings.`)) {
-      deleteMutation.mutate(p.id);
-    }
-  }
-
-  const { data: usedCategories = [] } = useQuery({
-    queryKey: ["categories"],
-    quesryFn: listCategories(),
-  });
-
-  const allCategories = useMemo(() => {
-    const fromProducts = products.map((p) => p.category).filter(Boolean);
-    const combined = new Set([
-      ...DEFAULT_CATEGORIES,
-      ...usedCategories,
-      ...fromProducts,
-    ]);
-    return Array.from(combined).sort();
-  }, [products, usedCategories]);
-
-  const allBrands = useMemo(() => {
-    const s = new Set(products.map((p) => p.brand).filter(Boolean));
-    return Array.from(s).sort();
-  }, [products]);
-
-  const allSuppliers = useMemo(() => {
-    const s = new Set(products.map((p) => p.supplier_name).filter(Boolean));
-    return Array.from(s).sort();
-  }, [products]);
+  const hasFilters = filterCategory || filterBrand || filterSupplier || sortBy || stockStatus;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Products</h2>
-        <button
-          onClick={openAdd}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + Add Product
-        </button>
-      </div>
+      <PageHeader
+        title="Products"
+        subtitle="Manage your catalog, stock, and pricing"
+        actions={
+          <Button onClick={openAdd}>
+            <Plus className="size-4" />
+            Add Product
+          </Button>
+        }
+      />
 
-      <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-center text-sm">
-        <input
-          type="text"
-          placeholder="Search by name or brand…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-64 px-3 py-2 border border-slate-300 rounded"
-        />
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded"
-        >
-          <option value="">All categories</option>
-          {allCategories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filterBrand}
-          onChange={(e) => setFilterBrand(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded"
-        >
-          <option value="">All brands</option>
-          {allBrands.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-        <select
-          value={filterSupplier}
-          onChange={(e) => setFilterSupplier(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded"
-        >
-          <option value="">All suppliers</option>
-          {allSuppliers.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+      {/* Filters */}
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or brand…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
 
-        {(filterCategory || filterBrand || filterSupplier) && (
-          <button
-            onClick={() => {
-              setFilterCategory("");
-              setFilterBrand("");
-              setFilterSupplier("");
-            }}
-            className="text-xs text-slate-500 hover:text-slate-700 underline"
-          >
-            Clear filters
-          </button>
-        )}
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All categories</SelectItem>
+              {allCategories.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <span className="ml-auto text-xs text-slate-500">
-          {filteredProducts.length} of {products.length} products
-        </span>
-      </div>
+          <Select value={filterBrand} onValueChange={setFilterBrand}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="All brands" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All brands</SelectItem>
+              {allBrands.map((b) => (
+                <SelectItem key={b} value={b}>
+                  {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-      {isLoading ? (
-        <div className="text-slate-500">Loading products…</div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="text-slate-500">
-          {products.length === 0
-      ? 'No products yet. Click "Add Products".'
-      : "No products match the filters."}
+          <Select value={filterSupplier} onValueChange={setFilterSupplier}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="All suppliers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All suppliers</SelectItem>
+              {allSuppliers.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Sort: name A–Z" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Name A–Z</SelectItem>
+              <SelectItem value="name_desc">Name Z–A</SelectItem>
+              <SelectItem value="stock_asc">Stock: lowest first</SelectItem>
+              <SelectItem value="stock_desc">Stock: highest first</SelectItem>
+              <SelectItem value="price_asc">Price: lowest first</SelectItem>
+              <SelectItem value="price_desc">Price: highest first</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={stockStatus} onValueChange={setStockStatus}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Stock: all" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All stock</SelectItem>
+              <SelectItem value="out">Out of stock</SelectItem>
+              <SelectItem value="low">Low stock 🔴</SelectItem>
+              <SelectItem value="in">In stock 🟢</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilterCategory("");
+                setFilterBrand("");
+                setFilterSupplier("");
+                setSortBy("");
+                setStockStatus("");
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filteredProducts.length} of {products.length} products
+          </span>
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="px-2 py-2 w-8"></th>
-                <th className="text-left px-4 py-2">Name</th>
-                <th className="text-left px-4 py-2">Category</th>
-                <th className="text-left px-4 py-2">Brand</th>
-                <th className="text-left px-4 py-2">Supplier</th>
-                <th className="text-right px-4 py-2">Cost (₹)</th>
-                <th className="text-right px-4 py-2">Price (₹)</th>
-                <th className="text-right px-4 py-2">Stock</th>
-                <th className="text-right px-4 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+      </Card>
+
+      {/* Table */}
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={8} cols={6} />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <EmptyState
+            icon={Package}
+            title={
+              products.length === 0
+                ? "No products yet"
+                : "No products match the filters"
+            }
+            description={
+              products.length === 0
+                ? "Click “Add Product” to create your first one."
+                : "Try clearing or adjusting the filters above."
+            }
+            action={
+              products.length === 0 && (
+                <Button onClick={openAdd}>
+                  <Plus className="size-4" />
+                  Add Product
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Table className="table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8"></TableHead>
+                <TableHead className="w-[28%]">Name</TableHead>
+                <TableHead className="w-[12%]">Category</TableHead>
+                <TableHead className="w-[10%]">Brand</TableHead>
+                <TableHead className="w-[14%]">Supplier</TableHead>
+                <TableHead className="w-[9%] text-right">Cost ₹</TableHead>
+                <TableHead className="w-[9%] text-right">Price ₹</TableHead>
+                <TableHead className="w-[8%] text-right">Stock</TableHead>
+                <TableHead className="w-[10%] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredProducts.map((p) => (
                 <Fragment key={p.id}>
-                  <tr className="border-t border-slate-100">
-                    <td className="px-2 py-2 w-8 text-center">
-                      <button
+                  <TableRow>
+                    <TableCell className="w-8">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6"
                         onClick={() =>
                           setExpandedId(expandedId === p.id ? null : p.id)
                         }
-                        className="text-slate-500 hover:text-slate-800 text-xs"
-                        title="Show batches"
                       >
-                        {expandedId === p.id ? "▼" : "▶"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 font-medium">{p.name}</td>
-                    <td className="px-4 py-2 text-slate-600">{p.category}</td>
-                    <td className="px-4 py-2 text-slate-600">
+                        {expandedId === p.id ? (
+                          <ChevronDown className="size-3.5" />
+                        ) : (
+                          <ChevronRight className="size-3.5" />
+                        )}
+                      </Button>
+                    </TableCell>
+                    <TableCell className="font-medium truncate">
+                      {p.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className="truncate max-w-full"
+                      >
+                        {p.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground truncate">
                       {p.brand || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground truncate">
                       {p.supplier_name || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right text-slate-600">
-                      {p.latest_cost != null
-                        ? `₹ ${Number(p.latest_cost).toFixed(2)}`
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {p.latest_cost != null ? (
+                        `₹ ${Number(p.latest_cost).toFixed(2)}`
+                      ) : (
+                        <span className="text-muted-foreground/40 text-xs">
+                          no cost
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
                       ₹ {Number(p.selling_price).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      {Number(p.current_stock)}
-                    </td>
-
-                    {/* Action button */}
-                    <td className="px-4 py-2 text-right space-x-2">
-                      <button
-                        onClick={() => setAdjustProduct(p)}
-                        className="text-slate-700 hover:underline text-xs"
-                      >
-                        Adjust
-                      </button>
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="text-emerald-600 hover:underline text-xs"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p)}
-                        className="text-red-600 hover:underline text-xs"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <StockBadge
+                        stock={Number(p.current_stock)}
+                        low={Number(p.low_stock_threshold)}
+                        mid={Number(p.mid_stock_threshold)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => setAdjustProduct(p)}
+                          title="Adjust stock"
+                        >
+                          <SlidersHorizontal className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => openEdit(p)}
+                          title="Edit"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(p)}
+                          title="Delete"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                   {expandedId === p.id && (
-                    <BatchesRow productId={p.id} colSpan={9} />
+                    <TableRow className="bg-muted/30">
+                      <TableCell colSpan={9} className="p-0">
+                        <BatchesPanel productId={p.id} />
+                      </TableCell>
+                    </TableRow>
                   )}
                 </Fragment>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
+      {/* Add/Edit dialog */}
+      <Dialog open={showForm} onOpenChange={(o) => !o && closeForm()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? "Edit Product" : "Add Product"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {errorMsg && (
+            <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <Field label="Name *">
+              <Input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                required
+              />
+            </Field>
+
+            <Field label="Category *">
+              {!addingNewCategory ? (
+                <Select
+                  value={form.category}
+                  onValueChange={(v) => {
+                    if (v === "__new__") {
+                      setAddingNewCategory(true);
+                      setForm((f) => ({ ...f, category: "" }));
+                    } else {
+                      setForm((f) => ({ ...f, category: v }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allCategories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new__">+ Add new…</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    autoFocus
+                    placeholder="New category name"
+                    value={form.category}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, category: e.target.value }))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setAddingNewCategory(false);
+                      setForm((f) => ({ ...f, category: "" }));
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </Field>
+
+            <Field label="Brand">
+              <Input name="brand" value={form.brand} onChange={handleChange} />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Unit">
+                <Select
+                  value={form.unit}
+                  onValueChange={(v) => setForm((f) => ({ ...f, unit: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="piece">piece</SelectItem>
+                    <SelectItem value="meter">meter</SelectItem>
+                    <SelectItem value="box">box</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Pieces per box">
+                <Input
+                  type="number"
+                  name="pieces_per_box"
+                  value={form.pieces_per_box}
+                  onChange={handleChange}
+                  min={1}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Selling price ₹ *">
+                <Input
+                  type="number"
+                  name="selling_price"
+                  value={form.selling_price}
+                  onChange={handleChange}
+                  required
+                  min={0}
+                  step="0.01"
+                />
+              </Field>
+              <Field label="Low stock 🔴">
+                <Input
+                  type="number"
+                  name="low_stock_threshold"
+                  value={form.low_stock_threshold}
+                  onChange={handleChange}
+                  min={0}
+                />
+              </Field>
+              <Field label="Mid stock 🟠">
+                <Input
+                  type="number"
+                  name="mid_stock_threshold"
+                  value={form.mid_stock_threshold}
+                  onChange={handleChange}
+                  min={0}
+                />
+              </Field>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={closeForm}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                {createMutation.isPending || updateMutation.isPending
+                  ? "Saving…"
+                  : editingId
+                  ? "Save changes"
+                  : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adjust stock modal */}
       {adjustProduct && (
         <AdjustStockModal
           product={adjustProduct}
@@ -356,243 +687,112 @@ export default function Products() {
         />
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-            <h3 className="text-lg font-bold mb-4">
-              {editingId ? "Edit Product" : "Add Product"}
-            </h3>
-
-            {errorMsg && (
-              <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <Field label="Name *">
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                  className="w-full border rounded px-2 py-1"
-                />
-              </Field>
-
-              <Field label="Category *">
-                {!addingNewCategory ? (
-                  <select
-                    value={form.category}
-                    onChange={(e) => {
-                      if (e.target.value === "__new__") {
-                        setAddingNewCategory(true);
-                        setForm((f) => ({ ...f, category: "" }));
-                      } else {
-                        setForm((f) => ({ ...f, category: e.target.value }));
-                      }
-                    }}
-                    required
-                    className="w-full border rounded px-2 py-1"
-                  >
-                    <option value="">— Select category —</option>
-                    {allCategories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                    <option value="__new__">+ Add new…</option>
-                  </select>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      autoFocus
-                      placeholder="Type new category name"
-                      value={form.category}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, category: e.target.value }))
-                      }
-                      className="flex-1 border rounded px-2 py-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddingNewCategory(false);
-                        setForm((f) => ({ ...f, category: "" }));
-                      }}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </Field>
-
-              <Field label="Brand">
-                <input
-                  name="brand"
-                  value={form.brand}
-                  onChange={handleChange}
-                  className="w-full border rounded px-2 py-1"
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Unit">
-                  <select
-                    name="unit"
-                    value={form.unit}
-                    onChange={handleChange}
-                    className="w-full border rounded px-2 py-1"
-                  >
-                    <option value="piece">piece</option>
-                    <option value="meter">meter</option>
-                    <option value="box">box</option>
-                  </select>
-                </Field>
-
-                <Field label="Pieces per box">
-                  <input
-                    type="number"
-                    name="pieces_per_box"
-                    value={form.pieces_per_box}
-                    onChange={handleChange}
-                    min={1}
-                    className="w-full border rounded px-2 py-1"
-                  />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Selling price ₹ *">
-                  <input
-                    type="number"
-                    name="selling_price"
-                    value={form.selling_price}
-                    onChange={handleChange}
-                    required
-                    min={0}
-                    step="0.01"
-                    className="w-full border rounded px-2 py-1"
-                  />
-                </Field>
-                <Field label="Low threshold 🔴">
-                  <input
-                    type="number"
-                    name="low_stock_threshold"
-                    value={form.low_stock_threshold}
-                    onChange={handleChange}
-                    min={0}
-                    className="w-full border rounded px-2 py-1"
-                  />
-                </Field>
-                <Field label="Mid threshold 🟠">
-                  <input
-                    type="number"
-                    name="mid_stock_threshold"
-                    value={form.mid_stock_threshold}
-                    onChange={handleChange}
-                    min={0}
-                    className="w-full border rounded px-2 py-1"
-                  />
-                </Field>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    createMutation.isPending || updateMutation.isPending
-                  }
-                  className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-                >
-                  {createMutation.isPending || updateMutation.isPending
-                    ? "Saving…"
-                    : editingId
-                    ? "Save changes"
-                    : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate this product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteTarget?.name}” will be hidden from listings. Existing
+              sales and stock records are kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate(deleteTarget.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 function Field({ label, children }) {
   return (
-    <label className="block">
-      <span className="block text-xs font-medium text-slate-600 mb-1">
-        {label}
-      </span>
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
       {children}
-    </label>
+    </div>
   );
 }
 
-function BatchesRow({ productId, colSpan }) {
+function StockBadge({ stock, low, mid }) {
+  let tone = "text-emerald-600";
+  let dot = "bg-emerald-500";
+  if (stock <= low) {
+    tone = "text-red-600";
+    dot = "bg-red-500";
+  } else if (stock <= mid) {
+    tone = "text-amber-600";
+    dot = "bg-amber-500";
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-sm font-medium ${tone}`}
+    >
+      <span className={`inline-block size-2 rounded-full ${dot}`} />
+      {stock}
+    </span>
+  );
+}
+
+function BatchesPanel({ productId }) {
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ["product-batches", productId],
     queryFn: () => getProductBatches(productId),
   });
 
+  if (isLoading) {
+    return (
+      <div className="p-3 text-xs text-muted-foreground">Loading batches…</div>
+    );
+  }
+
+  if (batches.length === 0) {
+    return (
+      <div className="p-3 text-xs text-muted-foreground">
+        No stock batches yet — add stock via “Adjust”.
+      </div>
+    );
+  }
+
   return (
-    <tr className="bg-slate-50 border-t border-slate-200">
-      <td colSpan={colSpan} className="px-6 py-3">
-        {isLoading ? (
-          <span className="text-slate-500 text-xs">Loading batches…</span>
-        ) : batches.length === 0 ? (
-          <span className="text-slate-500 text-xs">
-            No stock batches. Buy some stock from a wholesaler to see batches
-            here.
-          </span>
-        ) : (
-          <div>
-            <div className="text-xs font-semibold text-slate-700 mb-2">
-              Remaining batches (FIFO order — oldest first)
-            </div>
-            <table className="w-full text-xs">
-              <thead className="text-slate-500">
-                <tr>
-                  <th className="text-left py-1">Purchased</th>
-                  <th className="text-left py-1">Supplier</th>
-                  <th className="text-left py-1">Receipt #</th>
-                  <th className="text-right py-1">Initial</th>
-                  <th className="text-right py-1">Remaining</th>
-                  <th className="text-right py-1">Cost / pc</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.map((b) => (
-                  <tr key={b.id} className="border-t border-slate-200">
-                    <td className="py-1">{b.purchase_date}</td>
-                    <td className="py-1">{b.wholesaler_name || "—"}</td>
-                    <td className="py-1">{b.receipt_number || "—"}</td>
-                    <td className="py-1 text-right">
-                      {Number(b.quantity_initial)}
-                    </td>
-                    <td className="py-1 text-right font-medium">
-                      {Number(b.quantity_remaining)}
-                    </td>
-                    <td className="py-1 text-right">
-                      ₹ {Number(b.cost_per_piece).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <div className="p-3">
+      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        Remaining batches — oldest first
+      </div>
+      <div className="grid gap-1">
+        {batches.map((b) => (
+          <div
+            key={b.id}
+            className="grid grid-cols-6 gap-3 text-xs items-center bg-background rounded px-2 py-1.5 border"
+          >
+            <span className="text-muted-foreground">{b.purchase_date}</span>
+            <span>{b.wholesaler_name || "—"}</span>
+            <span className="text-muted-foreground">
+              {b.receipt_number || "—"}
+            </span>
+            <span className="text-right text-muted-foreground">
+              initial {Number(b.quantity_initial)}
+            </span>
+            <span className="text-right font-medium">
+              remaining {Number(b.quantity_remaining)}
+            </span>
+            <span className="text-right">
+              @ ₹ {Number(b.cost_per_piece).toFixed(2)}
+            </span>
           </div>
-        )}
-      </td>
-    </tr>
+        ))}
+      </div>
+    </div>
   );
 }

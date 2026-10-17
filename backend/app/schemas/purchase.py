@@ -68,6 +68,7 @@ class WholesalerPaymentCreate(BaseModel):
     payment_date: Optional[date] = None
     payment_mode: str = Field("cash", pattern="^(cash|upi)$")
     notes: Optional[str] = None
+    reference: Optional[str] = None
 
 
 class WholesalerPaymentRead(BaseModel):
@@ -80,6 +81,7 @@ class WholesalerPaymentRead(BaseModel):
     payment_mode: str
     notes: Optional[str]
     created_at: datetime
+    reference: Optional[str] = None
 
 
 # ---------- Ledger / balance ----------

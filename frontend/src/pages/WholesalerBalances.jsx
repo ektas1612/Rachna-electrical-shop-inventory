@@ -1,35 +1,66 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listBalances, createPayment } from "../api/purchases";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Wallet, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+
+import { listBalances, createPayment } from "../api/purchases";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
 
 export default function WholesalerBalances() {
   const queryClient = useQueryClient();
 
-  // ---- Balances query ----
   const { data: balances = [], isLoading } = useQuery({
     queryKey: ["wholesaler-balances"],
     queryFn: listBalances,
   });
 
-  // ---- Payment modal state ----
   const [showPayment, setShowPayment] = useState(false);
   const [payWholesalerId, setPayWholesalerId] = useState("");
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode] = useState("cash");
   const [payNotes, setPayNotes] = useState("");
   const [errMsg, setErrMsg] = useState("");
+  const [payReference, setPayReference] = useState("");
 
   const paymentMutation = useMutation({
     mutationFn: createPayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wholesaler-balances"] });
-      setShowPayment(false);
-      setPayWholesalerId("");
-      setPayAmount("");
-      setPayMode("cash");
-      setPayNotes("");
-      setErrMsg("");
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Payment recorded");
+      closePayment();
     },
     onError: (e) => setErrMsg(e.message),
   });
@@ -41,6 +72,12 @@ export default function WholesalerBalances() {
     setPayNotes("");
     setErrMsg("");
     setShowPayment(true);
+    setPayReference("");
+  }
+
+  function closePayment() {
+    setShowPayment(false);
+    setPayReference("");
   }
 
   function handlePaySubmit(e) {
@@ -54,190 +91,224 @@ export default function WholesalerBalances() {
       wholesaler_id: Number(payWholesalerId),
       amount: Number(payAmount),
       payment_mode: payMode,
+      reference: payReference.trim() || null,
       notes: payNotes.trim() || null,
     });
   }
 
+  const totalWeOwe = balances
+    .filter((b) => Number(b.balance) > 0)
+    .reduce((s, b) => s + Number(b.balance), 0);
+  const totalAdvance = balances
+    .filter((b) => Number(b.balance) < 0)
+    .reduce((s, b) => s + Math.abs(Number(b.balance)), 0);
+
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Wholesaler Ledger</h2>
-        <button
-          onClick={openPayment}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + Record Payment
-        </button>
+      <PageHeader
+        title="Wholesaler Ledger"
+        subtitle="Balances with your suppliers"
+        actions={
+          <Button onClick={openPayment}>
+            <Plus className="size-4" />
+            Record Payment
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+            We owe
+          </div>
+          <div className="text-2xl font-semibold text-red-600 mt-1">
+            ₹ {totalWeOwe.toFixed(2)}
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+            Advances paid
+          </div>
+          <div className="text-2xl font-semibold text-emerald-600 mt-1">
+            ₹ {totalAdvance.toFixed(2)}
+          </div>
+        </Card>
       </div>
 
-      {/* Body */}
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : balances.length === 0 ? (
-        <div className="text-slate-500">No wholesalers yet.</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-right px-4 py-2">Opening ₹</th>
-                <th className="text-left px-4 py-2">Wholesaler</th>
-                <th className="text-right px-4 py-2">Total Purchased ₹</th>
-                <th className="text-right px-4 py-2">Total Paid ₹</th>
-                <th className="text-right px-4 py-2">Balance ₹</th>
-                <th className="text-left px-4 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={3} cols={5} />
+          </div>
+        ) : balances.length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title="No wholesalers yet"
+            description="Add wholesalers to see their balances here."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Wholesaler</TableHead>
+                <TableHead className="text-right">Opening ₹</TableHead>
+                <TableHead className="text-right">Purchased ₹</TableHead>
+                <TableHead className="text-right">Paid ₹</TableHead>
+                <TableHead className="text-right">Balance ₹</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right w-25"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {balances.map((b) => {
                 const bal = Number(b.balance);
                 const isRed = bal > 0;
                 const isGreen = bal < 0;
                 return (
-                  <tr
-                    key={b.wholesaler_id}
-                    className="border-t border-slate-100"
-                  >
-                    <td className="px-4 py-2 font-medium">
+                  <TableRow key={b.wholesaler_id}>
+                    <TableCell className="font-medium">
                       <Link
                         to={`/wholesaler-ledger/${b.wholesaler_id}`}
                         className="text-emerald-700 hover:underline"
                       >
                         {b.wholesaler_name}
                       </Link>
-                    </td>
-                    <td className="px-4 py-2 text-right text-slate-600">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
                       {Number(b.opening_balance || 0) !== 0
                         ? `₹ ${Number(b.opening_balance).toFixed(2)}`
                         : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
                       ₹ {Number(b.total_purchased).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-right">
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
                       ₹ {Number(b.total_paid).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold">
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
                       ₹ {Math.abs(bal).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-2">
+                    </TableCell>
+                    <TableCell>
                       {isRed && (
-                        <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                           You owe
-                        </span>
+                        </Badge>
                       )}
                       {isGreen && (
-                        <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">
-                          Advance (they owe you)
-                        </span>
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                          Advance
+                        </Badge>
                       )}
                       {!isRed && !isGreen && (
-                        <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
-                          Settled
-                        </span>
+                        <Badge variant="secondary">Settled</Badge>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link to={`/wholesaler-ledger/${b.wholesaler_id}`}>
+                        <Button variant="ghost" size="sm">
+                          Ledger
+                          <ArrowRight className="size-3.5" />
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
-      {/* Payment modal */}
-      {showPayment && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-3">Record Payment</h3>
+      <Dialog open={showPayment} onOpenChange={(o) => !o && closePayment()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
 
-            {errMsg && (
-              <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
-                {errMsg}
-              </div>
-            )}
+          {errMsg && (
+            <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
+              {errMsg}
+            </div>
+          )}
 
-            <form onSubmit={handlePaySubmit} className="space-y-3">
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Wholesaler *
-                </span>
-                <select
-                  value={payWholesalerId}
-                  onChange={(e) => setPayWholesalerId(e.target.value)}
-                  required
-                  className="w-full border rounded px-2 py-1"
-                >
-                  <option value="">— Select —</option>
+          <form onSubmit={handlePaySubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Wholesaler *</Label>
+              <Select
+                value={payWholesalerId}
+                onValueChange={setPayWholesalerId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select wholesaler" />
+                </SelectTrigger>
+                <SelectContent>
                   {balances.map((b) => (
-                    <option key={b.wholesaler_id} value={b.wholesaler_id}>
+                    <SelectItem
+                      key={b.wholesaler_id}
+                      value={String(b.wholesaler_id)}
+                    >
                       {b.wholesaler_name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-              </label>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Amount ₹ *
-                </span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  required
-                  className="w-full border rounded px-2 py-1 text-right"
-                />
-              </label>
+            <div className="space-y-1.5">
+              <Label>Amount ₹ *</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+                required
+                className="text-right"
+              />
+            </div>
 
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Mode
-                </span>
-                <select
-                  value={payMode}
-                  onChange={(e) => setPayMode(e.target.value)}
-                  className="w-full border rounded px-2 py-1"
-                >
-                  <option value="cash">cash</option>
-                  <option value="upi">upi</option>
-                </select>
-              </label>
+            <div className="space-y-1.5">
+              <Label>Mode</Label>
+              <Select value={payMode} onValueChange={setPayMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">
-                  Notes
-                </span>
-                <input
-                  value={payNotes}
-                  onChange={(e) => setPayNotes(e.target.value)}
-                  className="w-full border rounded px-2 py-1"
-                />
-              </label>
+            <div className="space-y-1.5">
+              <Label>Receipt # from wholesaler</Label>
+              <Input
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
 
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowPayment(false)}
-                  className="px-3 py-1.5 rounded border text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paymentMutation.isPending}
-                  className="px-3 py-1.5 rounded bg-emerald-600 text-white text-sm disabled:opacity-50"
-                >
-                  {paymentMutation.isPending ? "Saving…" : "Save"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Input
+                value={payNotes}
+                onChange={(e) => setPayNotes(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={closePayment}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={paymentMutation.isPending}>
+                {paymentMutation.isPending ? "Saving…" : "Save Payment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

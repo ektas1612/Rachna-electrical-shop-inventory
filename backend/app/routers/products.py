@@ -30,9 +30,10 @@ def list_products(
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     include_inactive: bool = Query(False),
+    sort_by: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    products = product_service.list_products(db, search, category, include_inactive)
+    products = product_service.list_products(db, search, category, include_inactive, sort_by)
     return [enrich_product(db, p) for p in products]
 
 @router.get("/meta/categories", response_model=List[str])

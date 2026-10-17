@@ -1,10 +1,32 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PackagePlus, PackageMinus } from "lucide-react";
+import { toast } from "sonner";
+
 import { adjustStock } from "../api/products";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function AdjustStockModal({ product, onClose }) {
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState("add");     // add | remove
+
+  const [mode, setMode] = useState("add");
   const [quantity, setQuantity] = useState(1);
   const [cost, setCost] = useState(product.latest_cost ?? "");
   const [reason, setReason] = useState("opening");
@@ -15,7 +37,10 @@ export default function AdjustStockModal({ product, onClose }) {
     mutationFn: (payload) => adjustStock(product.id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["product-batches", product.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["product-batches", product.id],
+      });
+      toast.success(mode === "add" ? "Stock added" : "Stock removed");
       onClose();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -28,7 +53,7 @@ export default function AdjustStockModal({ product, onClose }) {
     const qty = Number(quantity);
     if (!qty || qty <= 0) return setErrorMsg("Quantity must be > 0.");
     if (mode === "add" && (cost === "" || Number(cost) < 0))
-      return setErrorMsg("Cost per piece is required for positive adjustment.");
+      return setErrorMsg("Cost per piece is required when adding stock.");
 
     mutation.mutate({
       quantity_change: mode === "add" ? qty : -qty,
@@ -39,125 +64,113 @@ export default function AdjustStockModal({ product, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-        <h3 className="text-lg font-bold mb-1">Adjust Stock</h3>
-        <p className="text-xs text-slate-500 mb-4">
-          {product.name} — current stock: {Number(product.current_stock)}
-        </p>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Adjust Stock</DialogTitle>
+        </DialogHeader>
+
+        <div className="-mt-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{product.name}</span>
+          {" — "}current stock:{" "}
+          <span className="font-medium text-foreground">
+            {Number(product.current_stock)}
+          </span>
+        </div>
 
         {errorMsg && (
-          <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
+          <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
             {errorMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="flex gap-2">
-            <button
+          <div className="grid grid-cols-2 gap-2">
+            <Button
               type="button"
+              variant={mode === "add" ? "default" : "outline"}
               onClick={() => setMode("add")}
-              className={`px-3 py-1 rounded text-xs border ${
-                mode === "add"
-                  ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-white text-slate-700 border-slate-300"
-              }`}
+              className="justify-center"
             >
+              <PackagePlus className="size-4" />
               Add stock
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant={mode === "remove" ? "destructive" : "outline"}
               onClick={() => setMode("remove")}
-              className={`px-3 py-1 rounded text-xs border ${
-                mode === "remove"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-white text-slate-700 border-slate-300"
-              }`}
+              className="justify-center"
             >
+              <PackageMinus className="size-4" />
               Remove stock
-            </button>
+            </Button>
           </div>
 
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">
-              Quantity *
-            </span>
-            <input
+          <div className="space-y-1.5">
+            <Label>Quantity *</Label>
+            <Input
               type="number"
-              min="0.01"
-              step="0.01"
+              min="1"
+              step="1"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               required
-              className="w-full border rounded px-2 py-1 text-right"
+              className="text-right"
             />
-          </label>
+          </div>
 
           {mode === "add" && (
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Cost per piece ₹ *
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Cost per piece ₹ *</Label>
+              <Input
                 type="number"
                 min="0"
                 step="0.01"
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
                 required
-                className="w-full border rounded px-2 py-1 text-right"
+                className="text-right"
               />
-              <span className="text-xs text-slate-500">
-                Used for FIFO cost tracking. Fill with the purchase price.
-              </span>
-            </label>
+              <p className="text-xs text-muted-foreground">
+                Used for FIFO cost tracking. Enter the purchase price.
+              </p>
+            </div>
           )}
 
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">
-              Reason
-            </span>
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full border rounded px-2 py-1"
-            >
-              <option value="opening">Opening stock</option>
-              <option value="correction">Correction</option>
-              <option value="damage">Damage / loss</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
+          <div className="space-y-1.5">
+            <Label>Reason</Label>
+            <Select value={reason} onValueChange={setReason}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="opening">Opening stock</SelectItem>
+                <SelectItem value="correction">Correction</SelectItem>
+                <SelectItem value="damage">Damage / loss</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">
-              Notes
-            </span>
-            <input
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full border rounded px-2 py-1"
+              placeholder="Optional"
             />
-          </label>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-            >
-              {mutation.isPending ? "Saving…" : "Save"}
-            </button>
           </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

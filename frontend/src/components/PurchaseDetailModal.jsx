@@ -1,5 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
+import { FileText } from "lucide-react";
+
 import { getPurchase } from "../api/purchases";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import TableSkeleton from "@/components/common/TableSkeleton";
 
 export default function PurchaseDetailModal({ purchaseId, onClose }) {
   const { data: purchase, isLoading, error } = useQuery({
@@ -9,25 +29,19 @@ export default function PurchaseDetailModal({ purchaseId, onClose }) {
   });
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl p-6 my-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">Purchase Details</h3>
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-slate-800 text-xl leading-none"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-3xl! max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Purchase Details</DialogTitle>
+        </DialogHeader>
 
         {isLoading ? (
-          <div className="text-slate-500">Loading…</div>
+          <TableSkeleton rows={3} cols={4} />
         ) : error ? (
-          <div className="text-red-600">Failed to load purchase.</div>
+          <div className="text-destructive text-sm">Failed to load purchase.</div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-4 text-sm">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
               <Info label="Date" value={purchase.purchase_date} />
               <Info
                 label="Wholesaler"
@@ -57,7 +71,7 @@ export default function PurchaseDetailModal({ purchaseId, onClose }) {
                       Number(purchase.amount_paid) <
                       Number(purchase.total_amount)
                         ? "text-red-600 font-semibold"
-                        : "text-emerald-600"
+                        : "text-emerald-600 font-semibold"
                     }
                   >
                     ₹{" "}
@@ -71,80 +85,75 @@ export default function PurchaseDetailModal({ purchaseId, onClose }) {
             </div>
 
             {purchase.notes && (
-              <div className="mb-4 text-sm">
-                <span className="text-slate-500">Notes: </span>
+              <div className="text-sm">
+                <span className="text-muted-foreground">Notes: </span>
                 <span>{purchase.notes}</span>
               </div>
             )}
 
-            <div className="border rounded overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600 text-xs">
-                  <tr>
-                    <th className="text-left px-3 py-2">Product</th>
-                    <th className="text-right px-3 py-2">Qty</th>
-                    <th className="text-left px-3 py-2">Unit</th>
-                    <th className="text-right px-3 py-2">Pieces</th>
-                    <th className="text-right px-3 py-2">Price / pc</th>
-                    <th className="text-right px-3 py-2">Line ₹</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <Card className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Pieces</TableHead>
+                    <TableHead className="text-right">Price /pc</TableHead>
+                    <TableHead className="text-right">Line ₹</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {!purchase.items || purchase.items.length === 0 ? (
-                    <tr>
-                      <td
+                    <TableRow>
+                      <TableCell
                         colSpan={6}
-                        className="text-center text-slate-500 py-3"
+                        className="text-center text-muted-foreground py-4"
                       >
                         No items recorded on this bill.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     purchase.items.map((it) => (
-                      <tr key={it.id} className="border-t border-slate-100">
-                        <td className="px-3 py-1">
+                      <TableRow key={it.id}>
+                        <TableCell className="font-medium">
                           {it.product_name || `Product #${it.product_id}`}
-                        </td>
-                        <td className="px-3 py-1 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           {Number(it.quantity_bought)}
-                        </td>
-                        <td className="px-3 py-1">{it.unit_used}</td>
-                        <td className="px-3 py-1 text-right">
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{it.unit_used}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
                           {Number(it.quantity_in_pieces)}
-                        </td>
-                        <td className="px-3 py-1 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           ₹ {Number(it.unit_price).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-1 text-right font-medium">
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
                           ₹ {Number(it.line_total).toFixed(2)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </Card>
           </>
         )}
-
-        <div className="flex justify-end mt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function Info({ label, value }) {
   return (
     <div>
-      <span className="text-xs text-slate-500">{label}</span>
-      <div className="font-medium">{value}</div>
+      <span className="text-xs text-muted-foreground uppercase tracking-wide">
+        {label}
+      </span>
+      <div className="font-medium mt-0.5">{value}</div>
     </div>
   );
 }

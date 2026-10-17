@@ -1,9 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Plus, FileText, Calendar, X } from "lucide-react";
+
 import { listPurchases } from "../api/purchases";
 import { listWholesalers } from "../api/wholesalers";
 import PurchaseForm from "../components/PurchaseForm";
 import PurchaseDetailModal from "../components/PurchaseDetailModal";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
+import { useSearchParams } from "react-router-dom";
 
 export default function Purchases() {
   const [showForm, setShowForm] = useState(false);
@@ -27,131 +55,192 @@ export default function Purchases() {
       }),
   });
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowForm(true);
+      searchParams.delete("new");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const hasFilters = wholesalerFilter || dateFrom || dateTo;
+  const totalAmount = purchases.reduce((s, p) => s + Number(p.total_amount), 0);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Purchases</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + New Purchase
-        </button>
-      </div>
-  
-      <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-end text-sm">
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">Wholesaler</span>
-          <select
-            value={wholesalerFilter}
-            onChange={(e) => setWholesalerFilter(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded"
+      <PageHeader
+        title="Purchases"
+        subtitle="Bills from your wholesalers"
+        actions={
+          <Button
+            onClick={() => setShowForm(true)}
+            size="lg"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md h-11 px-5 text-base font-semibold"
           >
-            <option value="">All wholesalers</option>
-            {wholesalers.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">From</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded"
+            <Plus className="size-5" />
+            New Purchase
+          </Button>
+        }
+      />
+
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Wholesaler</Label>
+            <Select
+              value={wholesalerFilter}
+              onValueChange={setWholesalerFilter}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="All wholesalers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All wholesalers</SelectItem>
+                {wholesalers.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">From</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-40"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">To</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-40"
+            />
+          </div>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setWholesalerFilter("");
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
+              <X className="size-3.5" />
+              Clear
+            </Button>
+          )}
+
+          <div className="ml-auto text-right">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              Filtered total
+            </div>
+            <div className="text-lg font-semibold">
+              ₹ {totalAmount.toFixed(2)}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={6} cols={6} />
+          </div>
+        ) : purchases.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title={
+              hasFilters ? "No purchases in this range" : "No purchases yet"
+            }
+            description={
+              hasFilters
+                ? "Try widening the date range or removing the wholesaler filter."
+                : "Click “New Purchase” to record your first bill."
+            }
+            action={
+              !hasFilters && (
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="size-4" />
+                  New Purchase
+                </Button>
+              )
+            }
           />
-        </label>
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">To</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded"
-          />
-        </label>
-        {(wholesalerFilter || dateFrom || dateTo) && (
-          <button
-            onClick={() => {
-              setWholesalerFilter("");
-              setDateFrom("");
-              setDateTo("");
-            }}
-            className="text-xs text-slate-500 hover:text-slate-700 underline pb-2"
-          >
-            Clear filters
-          </button>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Wholesaler</TableHead>
+                <TableHead>Receipt #</TableHead>
+                <TableHead className="text-right">Items</TableHead>
+                <TableHead className="text-right">Total ₹</TableHead>
+                <TableHead className="text-right">Paid ₹</TableHead>
+                <TableHead className="text-right w-25">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {purchases.map((p) => {
+                const total = Number(p.total_amount);
+                const paid = Number(p.amount_paid);
+                const due = total - paid;
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="text-muted-foreground">
+                      {p.purchase_date}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {p.wholesaler_name || `#${p.wholesaler_id}`}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-xs">
+                      {p.receipt_number || "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {p.items?.length ?? 0}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      ₹ {total.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {due > 0 ? (
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                          ₹ {paid.toFixed(2)} / ₹ {total.toFixed(2)}
+                        </Badge>
+                      ) : (
+                        <span className="text-emerald-600 text-sm">
+                          ₹ {paid.toFixed(2)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setReviewId(p.id)}
+                      >
+                        Review
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
-      </div>
-  
-      {!isLoading && purchases.length > 0 && (
-        <div className="text-sm text-slate-600 mb-2">
-          Showing <b>{purchases.length}</b> purchase
-          {purchases.length !== 1 ? "s" : ""} • Total:{" "}
-          <b>
-            ₹{" "}
-            {purchases
-              .reduce((s, p) => s + Number(p.total_amount), 0)
-              .toFixed(2)}
-          </b>
-        </div>
-      )}
-  
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : purchases.length === 0 ? (
-        <div className="text-slate-500">No purchases yet.</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-4 py-2">Date</th>
-                <th className="text-left px-4 py-2">Wholesaler</th>
-                <th className="text-left px-4 py-2">Receipt #</th>
-                <th className="text-right px-4 py-2">Items</th>
-                <th className="text-right px-4 py-2">Total ₹</th>
-                <th className="text-right px-4 py-2">Paid ₹</th>
-                <th className="text-right px-4 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {purchases.map((p) => (
-                <tr key={p.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{p.purchase_date}</td>
-                  <td className="px-4 py-2 font-medium">
-                    {p.wholesaler_name || `#${p.wholesaler_id}`}
-                  </td>
-                  <td className="px-4 py-2 text-slate-600">
-                    {p.receipt_number || "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {p.items?.length ?? 0}
-                  </td>
-                  <td className="px-4 py-2 text-right font-medium">
-                    ₹ {Number(p.total_amount).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-right text-slate-600">
-                    ₹ {Number(p.amount_paid).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <button
-                      onClick={() => setReviewId(p.id)}
-                      className="text-emerald-600 hover:underline text-xs"
-                    >
-                      Review
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-  
+      </Card>
+
       {showForm && <PurchaseForm onClose={() => setShowForm(false)} />}
       {reviewId && (
         <PurchaseDetailModal

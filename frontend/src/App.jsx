@@ -11,6 +11,7 @@ import CustomerLedger from "./pages/CustomerLedger";
 import Dashboard from "./pages/Dashboard";
 import Switchboards from "./pages/Switchboards";
 import WholesalerReturns from "./pages/WholesalerReturns";
+import PurchaseList from "./pages/PurchaseList";
 
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="customers/:id" element={<CustomerLedger />} />
         <Route path="switchboards" element={<Switchboards />} />
         <Route path="wholesaler-returns" element={<WholesalerReturns />} />
+        <Route path="purchase-list" element={<PurchaseList />} />
       </Route>
     </Routes>
   );

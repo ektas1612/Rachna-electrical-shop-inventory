@@ -18,6 +18,7 @@ class AllTimeStats(BaseModel):
     gross_profit: Decimal
     owed_to_us: Decimal
     we_owe: Decimal
+    planned_purchase_budget: Decimal = 0
 
 
 class TrendRow(BaseModel):

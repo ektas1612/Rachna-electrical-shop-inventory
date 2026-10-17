@@ -1,8 +1,41 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
+
 import { listWholesalers } from "../api/wholesalers";
 import { listProducts } from "../api/products";
 import { createPurchase } from "../api/purchases";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { ClipboardList } from "lucide-react";
+import LoadPurchaseListDialog from "./LoadPurchaseListDialog";
+import { markReceived } from "../api/purchaseList";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -29,6 +62,8 @@ export default function PurchaseForm({ onClose }) {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([{ ...emptyLine }]);
   const [errorMsg, setErrorMsg] = useState("");
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [loadedItemIds, setLoadedItemIds] = useState([]);
 
   const { data: wholesalers = [] } = useQuery({
     queryKey: ["wholesalers"],
@@ -49,11 +84,10 @@ export default function PurchaseForm({ onClose }) {
     const cats = new Set(products.map((p) => p.category).filter(Boolean));
     return Array.from(cats).sort();
   }, [products]);
-  
+
   const productsInCategory = (cat) =>
     products.filter((p) => p.category === cat);
 
-  // Compute running total
   const total = useMemo(() => {
     return items.reduce((sum, line) => {
       const product = productMap[line.product_id];
@@ -83,11 +117,27 @@ export default function PurchaseForm({ onClose }) {
 
   const mutation = useMutation({
     mutationFn: createPurchase,
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["wholesaler-balances"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-list"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-list-budget"] });
+      queryClient.invalidateQueries({
+        queryKey: ["purchase-list-recommendations"],
+      });
+
+      if (loadedItemIds.length > 0) {
+        try {
+          await markReceived(loadedItemIds);
+        } catch (err) {
+          // Non-fatal; purchase was saved, only the list cleanup failed
+          console.error(err);
+        }
+      }
+
+      toast.success("Purchase saved");
       onClose();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -101,16 +151,13 @@ export default function PurchaseForm({ onClose }) {
     if (items.length === 0) return setErrorMsg("Add at least one item.");
 
     for (const [i, line] of items.entries()) {
-      if (!line.category) 
-        return setErrorMsg(`Line ${i + 1}: pick a category.`);
+      if (!line.category) return setErrorMsg(`Line ${i + 1}: pick a category.`);
       if (!line.product_id)
         return setErrorMsg(`Line ${i + 1}: pick a product.`);
       if (Number(line.quantity_bought) <= 0)
         return setErrorMsg(`Line ${i + 1}: quantity must be > 0.`);
       if (line.unit_price === "" || Number(line.unit_price) < 0)
         return setErrorMsg(`Line ${i + 1}: enter a valid unit price.`);
-      if (!line.category) 
-        return setErrorMsg(`Line ${i + 1}: pick a category.`);
     }
 
     const payload = {
@@ -133,13 +180,70 @@ export default function PurchaseForm({ onClose }) {
     mutation.mutate(payload);
   }
 
+  function handleLoadFromList(chosenItems) {
+    const newLines = chosenItems.map((it) => {
+      const product = productMap[it.product_id];
+      return {
+        category: product?.category || "",
+        product_id: it.product_id,
+        quantity_bought: Number(it.quantity) || 1,
+        unit_used: "piece",
+        unit_price: it.last_price != null ? Number(it.last_price) : "",
+      };
+    });
+
+    // Replace empty lines, or append
+    setItems((prev) => {
+      const nonEmpty = prev.filter((l) => l.product_id);
+      return [...nonEmpty, ...newLines];
+    });
+
+    setLoadedItemIds(chosenItems.map((it) => it.id));
+    setShowLoadDialog(false);
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 my-8">
-        <h3 className="text-lg font-bold mb-4">New Purchase</h3>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-275! w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>New Purchase</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between -mt-2">
+          <span className="text-xs text-muted-foreground">
+            {loadedItemIds.length > 0
+              ? `${loadedItemIds.length} item${
+                  loadedItemIds.length !== 1 ? "s" : ""
+                } loaded from your Purchase List`
+              : ""}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowLoadDialog(true)}
+            disabled={!wholesalerId}
+            title={
+              !wholesalerId
+                ? "Pick a wholesaler first"
+                : "Load items from your list"
+            }
+          >
+            <ClipboardList className="size-4" />
+            Load from Purchase List
+          </Button>
+        </div>
+
+        {showLoadDialog && (
+          <LoadPurchaseListDialog
+            wholesalerId={wholesalerId ? Number(wholesalerId) : null}
+            onClose={() => setShowLoadDialog(false)}
+            onLoad={handleLoadFromList}
+          />
+        )}
 
         {errorMsg && (
-          <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
+          <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
             {errorMsg}
           </div>
         )}
@@ -147,79 +251,66 @@ export default function PurchaseForm({ onClose }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Header row */}
           <div className="grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Wholesaler *
-              </span>
-              <select
-                value={wholesalerId}
-                onChange={(e) => setWholesalerId(e.target.value)}
-                required
-                className="w-full border rounded px-2 py-1"
-              >
-                <option value="">— Select —</option>
-                {wholesalers.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="space-y-1.5">
+              <Label>Wholesaler *</Label>
+              <Select value={wholesalerId} onValueChange={setWholesalerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select wholesaler" />
+                </SelectTrigger>
+                <SelectContent>
+                  {wholesalers.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Receipt #
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Receipt #</Label>
+              <Input
                 value={receiptNumber}
                 onChange={(e) => setReceiptNumber(e.target.value)}
-                className="w-full border rounded px-2 py-1"
+                placeholder="Optional"
               />
-            </label>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Date *
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Date *</Label>
+              <Input
                 type="date"
                 value={purchaseDate}
                 onChange={(e) => setPurchaseDate(e.target.value)}
                 required
-                className="w-full border rounded px-2 py-1"
               />
-            </label>
+            </div>
           </div>
 
           {/* Line items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Items
-              </span>
-              <button
-                type="button"
-                onClick={addLine}
-                className="text-emerald-600 hover:underline text-xs"
-              >
-                + Add line
-              </button>
+              <Label>Items</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={addLine}>
+                <Plus className="size-3.5" />
+                Add line
+              </Button>
             </div>
 
-            <div className="border rounded overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600 text-xs">
-                  <tr>
-                    <th className="text-left px-2 py-2">Category</th>
-                    <th className="text-left px-2 py-2">Product</th>
-                    <th className="text-right px-2 py-2 w-24">Qty</th>
-                    <th className="text-left px-2 py-2 w-24">Unit</th>
-                    <th className="text-right px-2 py-2 w-28">Price /pc</th>
-                    <th className="text-right px-2 py-2 w-28">Line ₹</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <Card className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-35">Category</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="w-24 text-right">Qty</TableHead>
+                    <TableHead className="w-24">Unit</TableHead>
+                    <TableHead className="w-28 text-right">Price /pc</TableHead>
+                    <TableHead className="w-28 text-right">Line ₹</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {items.map((line, i) => {
                     const product = productMap[line.product_id];
                     const qty = Number(line.quantity_bought) || 0;
@@ -231,54 +322,62 @@ export default function PurchaseForm({ onClose }) {
                     const lineTotal = pieces * price;
 
                     return (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="px-2 py-1">
-                          <select
+                      <TableRow key={i}>
+                        <TableCell className="p-1">
+                          <Select
                             value={line.category}
-                            onChange={(e) =>
+                            onValueChange={(v) =>
                               updateLine(i, {
-                                category: e.target.value,
+                                category: v,
                                 product_id: "",
                               })
                             }
-                            className="w-full border rounded px-1 py-1"
                           >
-                            <option value="">— Category —</option>
-                            {categoryList.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <select
-                            value={line.product_id}
-                            onChange={(e) =>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryList.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Select
+                            value={
+                              line.product_id ? String(line.product_id) : ""
+                            }
+                            onValueChange={(v) =>
                               updateLine(i, {
-                                product_id: e.target.value
-                                  ? Number(e.target.value)
-                                  : "",
+                                product_id: v ? Number(v) : "",
                               })
                             }
                             disabled={!line.category}
-                            className="w-full border rounded px-1 py-1 disabled:bg-slate-100"
                           >
-                            <option value="">
-                              {line.category
-                                ? "— Select product —"
-                                : "Pick category first"}
-                            </option>
-                            {productsInCategory(line.category).map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                                {p.brand ? ` (${p.brand})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <input
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue
+                                placeholder={
+                                  line.category
+                                    ? "Select product"
+                                    : "Pick category first"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productsInCategory(line.category).map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.name}
+                                  {p.brand ? ` (${p.brand})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Input
                             type="number"
                             min="1"
                             step="1"
@@ -286,24 +385,28 @@ export default function PurchaseForm({ onClose }) {
                             onChange={(e) =>
                               updateLine(i, { quantity_bought: e.target.value })
                             }
-                            className="w-full border rounded px-1 py-1 text-right"
+                            className="h-8 text-right text-xs"
                           />
-                        </td>
-                        <td className="px-2 py-1">
-                          <select
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Select
                             value={line.unit_used}
-                            onChange={(e) =>
-                              updateLine(i, { unit_used: e.target.value })
+                            onValueChange={(v) =>
+                              updateLine(i, { unit_used: v })
                             }
-                            className="w-full border rounded px-1 py-1"
                           >
-                            <option value="piece">piece</option>
-                            <option value="box">box</option>
-                            <option value="meter">meter</option>
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <input
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="piece">piece</SelectItem>
+                              <SelectItem value="box">box</SelectItem>
+                              <SelectItem value="meter">meter</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Input
                             type="number"
                             min="0"
                             step="0.01"
@@ -311,135 +414,114 @@ export default function PurchaseForm({ onClose }) {
                             onChange={(e) =>
                               updateLine(i, { unit_price: e.target.value })
                             }
-                            className="w-full border rounded px-1 py-1 text-right"
+                            className="h-8 text-right text-xs"
                           />
-                        </td>
-                        <td className="px-2 py-1 text-right font-medium">
+                        </TableCell>
+                        <TableCell className="p-1 text-right text-sm font-medium">
                           ₹ {lineTotal.toFixed(2)}
-                        </td>
-                        <td className="px-2 py-1 text-center">
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
                           {items.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:text-destructive"
                               onClick={() => removeLine(i)}
-                              className="text-red-500 hover:text-red-700 text-xs"
-                              title="Remove"
                             >
-                              ✕
-                            </button>
+                              <X className="size-3.5" />
+                            </Button>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200 bg-slate-50">
-                    <td
-                      colSpan={5}
-                      className="px-2 py-2 text-right font-semibold"
-                    >
-                      Total
-                    </td>
-                    <td className="px-2 py-2 text-right font-bold">
-                      ₹ {total.toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+
+              <div className="border-t bg-muted/30 px-4 py-2 flex justify-end gap-4 text-sm">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-semibold">₹ {total.toFixed(2)}</span>
+              </div>
+            </Card>
           </div>
 
           {/* Payment */}
-          <div className="grid grid-cols-4 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Amount paid ₹
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                className="w-full border rounded px-2 py-1 text-right"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Mode
-              </span>
-              <select
-                value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value)}
-                className="w-full border rounded px-2 py-1"
-              >
-                <option value="cash">cash</option>
-                <option value="upi">upi</option>
-                <option value="mixed">mixed</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Cash ₹
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={cashPaid}
-                onChange={(e) => setCashPaid(e.target.value)}
-                disabled={paymentMode !== "mixed" && paymentMode !== "cash"}
-                className="w-full border rounded px-2 py-1 text-right disabled:bg-slate-100"
-              />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                UPI ₹
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={upiPaid}
-                onChange={(e) => setUpiPaid(e.target.value)}
-                disabled={paymentMode !== "mixed" && paymentMode !== "upi"}
-                className="w-full border rounded px-2 py-1 text-right disabled:bg-slate-100"
-              />
-            </label>
-          </div>
+          <Card className="p-3">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount paid ₹</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  className="text-right"
+                />
+              </div>
 
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">
-              Notes
-            </span>
-            <textarea
+              <div className="space-y-1.5">
+                <Label>Mode</Label>
+                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Cash ₹</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={cashPaid}
+                  onChange={(e) => setCashPaid(e.target.value)}
+                  disabled={paymentMode !== "mixed" && paymentMode !== "cash"}
+                  className="text-right disabled:bg-muted"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">UPI ₹</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={upiPaid}
+                  onChange={(e) => setUpiPaid(e.target.value)}
+                  disabled={paymentMode !== "mixed" && paymentMode !== "upi"}
+                  className="text-right disabled:bg-muted"
+                />
+              </div>
+            </div>
+          </Card>
+
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full border rounded px-2 py-1"
+              placeholder="Optional"
             />
-          </label>
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded border text-slate-700 hover:bg-slate-50 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-            >
-              {mutation.isPending ? "Saving…" : "Save Purchase"}
-            </button>
           </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving…" : "Save Purchase"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

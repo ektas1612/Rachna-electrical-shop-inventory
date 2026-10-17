@@ -1,121 +1,195 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Search, Users, ArrowUpDown } from "lucide-react";
+
 import { listCustomers } from "../api/customers";
+
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
 
 export default function Customers() {
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("outstanding"); // outstanding | name
+  const [sortBy, setSortBy] = useState("outstanding");
+  const [showOnlyDebtors, setShowOnlyDebtors] = useState(false);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", { search }],
     queryFn: () => listCustomers({ search }),
   });
 
-  const sorted = [...customers].sort((a, b) => {
-    if (sortBy === "name") return a.name.localeCompare(b.name);
-    // outstanding: biggest debtor first
-    return (Number(b.outstanding) || 0) - (Number(a.outstanding) || 0);
-  });
+  const filtered = useMemo(() => {
+    let list = customers;
+    if (showOnlyDebtors) {
+      list = list.filter((c) => Number(c.outstanding) > 0);
+    }
+    return [...list].sort((a, b) => {
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      return (Number(b.outstanding) || 0) - (Number(a.outstanding) || 0);
+    });
+  }, [customers, sortBy, showOnlyDebtors]);
 
   const totalOwed = customers.reduce(
     (s, c) => s + Math.max(0, Number(c.outstanding) || 0),
     0
   );
+  const debtorCount = customers.filter((c) => Number(c.outstanding) > 0).length;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Customers</h2>
-        <div className="text-sm">
-          <span className="text-xs text-slate-500">Total owed to us</span>
-          <div className="text-lg font-bold text-red-600">
-            ₹ {totalOwed.toFixed(2)}
+      <PageHeader
+        title="Customers"
+        subtitle="Credit customers and their outstanding balances"
+        actions={
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+              Owed to us
+            </div>
+            <div className="text-xl font-semibold text-red-600">
+              ₹ {totalOwed.toFixed(2)}
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex gap-3 mb-4">
-        <input
-          type="text"
-          placeholder="Search by name or phone…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm px-3 py-2 border border-slate-300 rounded text-sm"
-        />
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="px-3 py-2 border border-slate-300 rounded text-sm"
-        >
-          <option value="outstanding">Sort: biggest debtor first</option>
-          <option value="name">Sort: by name</option>
-        </select>
-      </div>
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
 
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : sorted.length === 0 ? (
-        <div className="text-slate-500">
-          No customers yet. They are created during a partial/unpaid sale.
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-56">
+              <ArrowUpDown className="size-4 mr-1" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="outstanding">
+                Sort: biggest debtor first
+              </SelectItem>
+              <SelectItem value="name">Sort: by name</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnlyDebtors}
+              onChange={(e) => setShowOnlyDebtors(e.target.checked)}
+              className="rounded"
+            />
+            Only customers who owe
+          </label>
+
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filtered.length} of {customers.length} customers •{" "}
+            {debtorCount} with balance
+          </span>
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-4 py-2">Name</th>
-                <th className="text-left px-4 py-2">Phone</th>
-                <th className="text-right px-4 py-2">Outstanding ₹</th>
-                <th className="text-right px-4 py-2 w-40"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((c) => {
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={6} cols={4} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title={
+              customers.length === 0
+                ? "No customers yet"
+                : "No customers match"
+            }
+            description={
+              customers.length === 0
+                ? "Customers are created automatically when a partial / unpaid sale needs one."
+                : "Try clearing the search or the “only debtors” filter."
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead className="text-right">Outstanding ₹</TableHead>
+                <TableHead className="text-right w-25">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((c) => {
                 const out = Number(c.outstanding) || 0;
                 return (
-                  <tr key={c.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 font-medium">
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">
                       <Link
                         to={`/customers/${c.id}`}
                         className="text-emerald-700 hover:underline"
                       >
                         {c.name}
                       </Link>
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {c.phone || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       {out > 0 && (
-                        <span className="font-semibold text-red-600">
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                           ₹ {out.toFixed(2)}
-                        </span>
+                        </Badge>
                       )}
                       {out === 0 && (
-                        <span className="text-slate-400">₹ 0.00</span>
-                      )}
-                      {out < 0 && (
-                        <span className="font-semibold text-emerald-600">
-                          Advance ₹ {Math.abs(out).toFixed(2)}
+                        <span className="text-muted-foreground text-sm">
+                          Settled
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-2 text-right space-x-2">
-                      <Link
-                        to={`/customers/${c.id}`}
-                        className="text-slate-700 hover:underline text-xs"
-                      >
-                        Ledger
+                      {out < 0 && (
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                          Advance ₹ {Math.abs(out).toFixed(2)}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link to={`/customers/${c.id}`}>
+                        <span className="text-sm text-emerald-600 hover:underline">
+                          Ledger
+                        </span>
                       </Link>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }

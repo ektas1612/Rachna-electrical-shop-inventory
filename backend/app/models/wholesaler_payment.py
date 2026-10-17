@@ -13,6 +13,7 @@ class WholesalerPayment(Base):
     amount = Column(Numeric(12, 2), nullable=False)  # positive = we paid them
     payment_date = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     payment_mode = Column(String, nullable=False, default="cash")  # "cash" / "upi"
+    reference = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

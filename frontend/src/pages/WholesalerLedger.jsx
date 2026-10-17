@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { listPurchases, listPayments } from "../api/purchases";
 import { listWholesalers } from "../api/wholesalers";
 import PurchaseDetailModal from "../components/PurchaseDetailModal";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function WholesalerLedger() {
   const { id } = useParams();
@@ -45,7 +47,7 @@ export default function WholesalerLedger() {
         key: `pmt-${pmt.id}`,
         date: pmt.payment_date?.slice(0, 10),
         kind: "payment",
-        receipt: "—",
+        receipt: pmt.reference || "—",
         order_amount: 0,
         payment_amount: Number(pmt.amount),
         ref_id: pmt.id,
@@ -53,7 +55,7 @@ export default function WholesalerLedger() {
       });
     }
     rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
+  
     let runningOrder = 0;
     let runningPayment = 0;
     for (const r of rows) {
@@ -65,6 +67,7 @@ export default function WholesalerLedger() {
     }
     return rows;
   }, [purchases, payments]);
+    
 
   const opening = Number(wholesaler?.opening_balance || 0);
   const totalOrder = ledger.length
@@ -78,11 +81,15 @@ export default function WholesalerLedger() {
   return (
     <div>
       <div className="mb-4">
-        <Link
-          to="/wholesaler-balances"
-          className="text-emerald-600 text-sm hover:underline"
-        >
-          ← Back to Wholesaler Ledger
+        <Link to="/wholesaler-balances">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground mb-2"
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </Button>
         </Link>
       </div>
 
@@ -171,7 +178,7 @@ export default function WholesalerLedger() {
                   >
                     ₹ {Math.abs(r.balance).toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500 truncate max-w-[160px]">
+                  <td className="px-3 py-2 text-xs text-slate-500 truncate max-w-40">
                     {r.notes || ""}
                   </td>
                   <td className="px-3 py-2 text-right">

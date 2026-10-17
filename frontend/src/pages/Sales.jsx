@@ -1,7 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Plus, Receipt, X } from "lucide-react";
+
 import { listSales } from "../api/sales";
 import SaleForm from "../components/SaleForm";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import TableSkeleton from "@/components/common/TableSkeleton";
+import { useSearchParams } from "react-router-dom";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -23,145 +51,262 @@ export default function Sales() {
       }),
   });
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowForm(true);
+      searchParams.delete("new");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const totalRevenue = sales.reduce((s, x) => s + Number(x.total_amount), 0);
+  const totalCash = sales.reduce((s, x) => s + Number(x.cash_paid), 0);
+  const totalUpi = sales.reduce((s, x) => s + Number(x.upi_paid), 0);
   const totalDue = sales.reduce((s, x) => s + Number(x.amount_due), 0);
+
+  const hasFilters = dateFrom || dateTo || statusFilter;
+
+  function setQuickRange(range) {
+    const today = new Date();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    if (range === "today") {
+      setDateFrom(iso(today));
+      setDateTo(iso(today));
+    } else if (range === "week") {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      setDateFrom(iso(start));
+      setDateTo(iso(today));
+    } else if (range === "month") {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateFrom(iso(start));
+      setDateTo(iso(today));
+    }
+  }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-slate-800">Sales</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded text-sm font-medium"
-        >
-          + New Sale
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-3 mb-4 flex flex-wrap gap-3 items-end text-sm">
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">From</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">To</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-xs text-slate-600 mb-1">Status</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border rounded px-2 py-1"
+      <PageHeader
+        title="Sales"
+        subtitle="Bills issued to walk-in and credit customers"
+        actions={
+          <Button
+            onClick={() => setShowForm(true)}
+            size="lg"
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md h-11 px-5 text-base font-semibold"
           >
-            <option value="">all</option>
-            <option value="paid">paid</option>
-            <option value="partial">partial</option>
-            <option value="unpaid">unpaid</option>
-          </select>
-        </label>
+            <Plus className="size-5" />
+            New Sale
+          </Button>
+        }
+      />
 
-        <div className="ml-auto flex gap-4 text-sm">
-          <div>
-            <span className="text-xs text-slate-500">Revenue</span>
-            <div className="font-bold text-emerald-700">
-              ₹ {totalRevenue.toFixed(2)}
-            </div>
+      <Card className="p-3 mb-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          {/* Quick range */}
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setQuickRange("today")}
+            >
+              Today
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setQuickRange("week")}
+            >
+              Week
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setQuickRange("month")}
+            >
+              Month
+            </Button>
           </div>
-          <div>
-            <span className="text-xs text-slate-500">Cash received</span>
-            <div className="font-bold text-slate-800">
-              ₹ {sales.reduce((s, x) => s + Number(x.cash_paid), 0).toFixed(2)}
-            </div>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500">UPI received</span>
-            <div className="font-bold text-slate-800">
-              ₹ {sales.reduce((s, x) => s + Number(x.upi_paid), 0).toFixed(2)}
-            </div>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500">Due</span>
-            <div className="font-bold text-red-600">
-              ₹ {totalDue.toFixed(2)}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {isLoading ? (
-        <div className="text-slate-500">Loading…</div>
-      ) : sales.length === 0 ? (
-        <div className="text-slate-500">No sales in this range.</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="text-left px-4 py-2">Date</th>
-                <th className="text-right px-4 py-2">Items</th>
-                <th className="text-right px-4 py-2">Total ₹</th>
-                <th className="text-right px-4 py-2">Paid ₹</th>
-                <th className="text-right px-4 py-2">Due ₹</th>
-                <th className="text-left px-4 py-2">Mode</th>
-                <th className="text-left px-4 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.map((s) => (
-                <tr key={s.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{s.sale_date}</td>
-                  <td className="px-4 py-2 text-right">
-                    {s.items?.length ?? 0}
-                  </td>
-                  <td className="px-4 py-2 text-right font-medium">
-                    ₹ {Number(s.total_amount).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-right text-slate-600">
-                    ₹ {Number(s.amount_paid).toFixed(2)}
-                  </td>
-                  <td
-                    className={`px-4 py-2 text-right ${
-                      Number(s.amount_due) > 0
-                        ? "text-red-600 font-semibold"
-                        : "text-slate-400"
-                    }`}
-                  >
-                    ₹ {Number(s.amount_due).toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2 text-xs">{s.payment_mode}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        s.payment_status === "paid"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : s.payment_status === "partial"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {s.payment_status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-1.5">
+            <Label className="text-xs">From</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-40"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">To</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-40"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Status</Label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+                <SelectItem value="unpaid">Unpaid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {hasFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+                setStatusFilter("");
+              }}
+            >
+              <X className="size-3.5" />
+              Clear
+            </Button>
+          )}
         </div>
-      )}
+
+        {/* Summary row */}
+        {!isLoading && sales.length > 0 && (
+          <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t">
+            <SummaryStat
+              label="Revenue"
+              value={totalRevenue}
+              accent="emerald"
+            />
+            <SummaryStat label="Cash received" value={totalCash} />
+            <SummaryStat label="UPI received" value={totalUpi} />
+            <SummaryStat
+              label="Due"
+              value={totalDue}
+              accent={totalDue > 0 ? "red" : "muted"}
+            />
+          </div>
+        )}
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-4">
+            <TableSkeleton rows={6} cols={6} />
+          </div>
+        ) : sales.length === 0 ? (
+          <EmptyState
+            icon={Receipt}
+            title={hasFilters ? "No sales in this range" : "No sales yet"}
+            description={
+              hasFilters
+                ? "Try Today / Week / Month or widen the date range."
+                : "Click “New Sale” to record your first sale."
+            }
+            action={
+              !hasFilters && (
+                <Button onClick={() => setShowForm(true)}>
+                  <Plus className="size-4" />
+                  New Sale
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Items</TableHead>
+                <TableHead className="text-right">Total ₹</TableHead>
+                <TableHead className="text-right">Paid ₹</TableHead>
+                <TableHead className="text-right">Due ₹</TableHead>
+                <TableHead>Mode</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sales.map((s) => {
+                const due = Number(s.amount_due);
+                return (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-muted-foreground">
+                      {s.sale_date}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {s.items?.length ?? 0}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      ₹ {Number(s.total_amount).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      ₹ {Number(s.amount_paid).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {due > 0 ? (
+                        <span className="text-red-600 font-medium">
+                          ₹ {due.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{s.payment_mode}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={s.payment_status} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
       {showForm && <SaleForm onClose={() => setShowForm(false)} />}
     </div>
   );
+}
+
+function SummaryStat({ label, value, accent }) {
+  const colorMap = {
+    emerald: "text-emerald-600",
+    red: "text-red-600",
+    muted: "text-muted-foreground",
+  };
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wide">
+        {label}
+      </div>
+      <div className={`text-lg font-semibold ${colorMap[accent] || ""}`}>
+        ₹ {value.toFixed(2)}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const map = {
+    paid: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+    partial: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+    unpaid: "bg-red-100 text-red-700 hover:bg-red-100",
+  };
+  return <Badge className={map[status] || ""}>{status}</Badge>;
 }

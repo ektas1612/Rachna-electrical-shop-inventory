@@ -1,8 +1,38 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
+import { toast } from "sonner";
+
 import { listWholesalers } from "../api/wholesalers";
 import { listProducts } from "../api/products";
 import { createReturn } from "../api/wholesalerReturns";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -11,7 +41,7 @@ function todayISO() {
 function isWeekend(isoDate) {
   if (!isoDate) return false;
   const d = new Date(isoDate);
-  const dow = d.getDay(); // 0 = Sunday, 6 = Saturday
+  const dow = d.getDay();
   return dow === 0 || dow === 6;
 }
 
@@ -79,6 +109,7 @@ export default function WholesalerReturnForm({ onClose }) {
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["wholesaler-balances"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Return saved");
       onClose();
     },
     onError: (e) => setErrorMsg(e.message),
@@ -104,7 +135,7 @@ export default function WholesalerReturnForm({ onClose }) {
         );
     }
 
-    const payload = {
+    mutation.mutate({
       wholesaler_id: Number(wholesalerId),
       return_date: returnDate,
       reference: reference.trim() || null,
@@ -114,27 +145,27 @@ export default function WholesalerReturnForm({ onClose }) {
         quantity: Number(l.quantity),
         unit_price: Number(l.unit_price),
       })),
-    };
-
-    mutation.mutate(payload);
+    });
   }
 
   const weekdayWarning = returnDate && !isWeekend(returnDate);
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 my-8">
-        <h3 className="text-lg font-bold mb-4">New Wholesaler Return</h3>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-275! max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>New Wholesaler Return</DialogTitle>
+        </DialogHeader>
 
         {errorMsg && (
-          <div className="bg-red-50 text-red-700 text-sm p-2 rounded mb-3">
+          <div className="bg-destructive/10 text-destructive text-sm p-2 rounded-md">
             {errorMsg}
           </div>
         )}
 
         {weekdayWarning && (
-          <div className="bg-amber-50 text-amber-800 text-sm p-2 rounded mb-3 border border-amber-200">
-            ⚠ Returns are usually done on Saturdays / Sundays. You're entering a{" "}
+          <div className="bg-amber-50 text-amber-800 text-sm p-2 rounded-md border border-amber-200">
+            ⚠ Returns are usually done on weekends. You're entering a{" "}
             {new Date(returnDate).toLocaleDateString("en-IN", {
               weekday: "long",
             })}
@@ -144,78 +175,65 @@ export default function WholesalerReturnForm({ onClose }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Wholesaler *
-              </span>
-              <select
-                value={wholesalerId}
-                onChange={(e) => setWholesalerId(e.target.value)}
-                required
-                className="w-full border rounded px-2 py-1"
-              >
-                <option value="">— Select —</option>
-                {wholesalers.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="space-y-1.5">
+              <Label>Wholesaler *</Label>
+              <Select value={wholesalerId} onValueChange={setWholesalerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select wholesaler" />
+                </SelectTrigger>
+                <SelectContent>
+                  {wholesalers.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>
+                      {w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Date *
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Date *</Label>
+              <Input
                 type="date"
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
                 required
-                className="w-full border rounded px-2 py-1"
               />
-            </label>
+            </div>
 
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 mb-1">
-                Reference #
-              </span>
-              <input
+            <div className="space-y-1.5">
+              <Label>Reference #</Label>
+              <Input
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                className="w-full border rounded px-2 py-1"
+                placeholder="Optional"
               />
-            </label>
+            </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Returned items
-              </span>
-              <button
-                type="button"
-                onClick={addLine}
-                className="text-emerald-600 hover:underline text-xs"
-              >
-                + Add line
-              </button>
+              <Label>Returned items</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={addLine}>
+                <Plus className="size-3.5" />
+                Add line
+              </Button>
             </div>
 
-            <div className="border rounded overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600 text-xs">
-                  <tr>
-                    <th className="text-left px-2 py-2 w-32">Category</th>
-                    <th className="text-left px-2 py-2">Product</th>
-                    <th className="text-right px-2 py-2 w-24">Qty</th>
-                    <th className="text-right px-2 py-2 w-20">Stock</th>
-                    <th className="text-right px-2 py-2 w-28">Unit ₹</th>
-                    <th className="text-right px-2 py-2 w-28">Line ₹</th>
-                    <th className="w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
+            <Card className="overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-32.5">Category</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="w-20 text-right">Qty</TableHead>
+                    <TableHead className="w-16 text-right">Stock</TableHead>
+                    <TableHead className="w-24 text-right">Unit ₹</TableHead>
+                    <TableHead className="w-24 text-right">Line ₹</TableHead>
+                    <TableHead className="w-8"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {items.map((line, i) => {
                     const p = productMap[line.product_id];
                     const qty = Number(line.quantity) || 0;
@@ -224,54 +242,57 @@ export default function WholesalerReturnForm({ onClose }) {
                     const overStock = p && qty > Number(p.current_stock);
 
                     return (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="px-2 py-1">
-                          <select
+                      <TableRow key={i}>
+                        <TableCell className="p-1">
+                          <Select
                             value={line.category}
-                            onChange={(e) =>
-                              updateLine(i, {
-                                category: e.target.value,
-                                product_id: "",
-                              })
+                            onValueChange={(v) =>
+                              updateLine(i, { category: v, product_id: "" })
                             }
-                            className="w-full border rounded px-1 py-1"
                           >
-                            <option value="">— Category —</option>
-                            {categoryList.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <select
-                            value={line.product_id}
-                            onChange={(e) =>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryList.map((c) => (
+                                <SelectItem key={c} value={c}>
+                                  {c}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Select
+                            value={line.product_id ? String(line.product_id) : ""}
+                            onValueChange={(v) =>
                               updateLine(i, {
-                                product_id: e.target.value
-                                  ? Number(e.target.value)
-                                  : "",
+                                product_id: v ? Number(v) : "",
                               })
                             }
                             disabled={!line.category}
-                            className="w-full border rounded px-1 py-1 disabled:bg-slate-100"
                           >
-                            <option value="">
-                              {line.category
-                                ? "— Select product —"
-                                : "Pick category first"}
-                            </option>
-                            {productsInCategory(line.category).map((prod) => (
-                              <option key={prod.id} value={prod.id}>
-                                {prod.name}
-                                {prod.brand ? ` (${prod.brand})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-2 py-1">
-                          <input
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue
+                                placeholder={
+                                  line.category
+                                    ? "Select product"
+                                    : "Pick category first"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {productsInCategory(line.category).map((prod) => (
+                                <SelectItem key={prod.id} value={String(prod.id)}>
+                                  {prod.name}
+                                  {prod.brand ? ` (${prod.brand})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Input
                             type="number"
                             min="1"
                             step="1"
@@ -279,22 +300,22 @@ export default function WholesalerReturnForm({ onClose }) {
                             onChange={(e) =>
                               updateLine(i, { quantity: e.target.value })
                             }
-                            className={`w-full border rounded px-1 py-1 text-right ${
+                            className={`h-8 text-right text-xs ${
                               overStock ? "border-red-500" : ""
                             }`}
                           />
-                        </td>
-                        <td
-                          className={`px-2 py-1 text-right text-xs ${
+                        </TableCell>
+                        <TableCell
+                          className={`p-1 text-right text-xs ${
                             overStock
                               ? "text-red-600 font-bold"
-                              : "text-slate-500"
+                              : "text-muted-foreground"
                           }`}
                         >
                           {p ? Number(p.current_stock) : "—"}
-                        </td>
-                        <td className="px-2 py-1">
-                          <input
+                        </TableCell>
+                        <TableCell className="p-1">
+                          <Input
                             type="number"
                             min="0"
                             step="0.01"
@@ -302,80 +323,64 @@ export default function WholesalerReturnForm({ onClose }) {
                             onChange={(e) =>
                               updateLine(i, { unit_price: e.target.value })
                             }
-                            className="w-full border rounded px-1 py-1 text-right"
+                            className="h-8 text-right text-xs"
                           />
-                        </td>
-                        <td className="px-2 py-1 text-right font-medium">
+                        </TableCell>
+                        <TableCell className="p-1 text-right text-sm font-medium">
                           ₹ {lineTotal.toFixed(2)}
-                        </td>
-                        <td className="px-2 py-1 text-center">
+                        </TableCell>
+                        <TableCell className="p-1 text-center">
                           {items.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:text-destructive"
                               onClick={() => removeLine(i)}
-                              className="text-red-500 hover:text-red-700 text-xs"
                             >
-                              ✕
-                            </button>
+                              <X className="size-3.5" />
+                            </Button>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-slate-200 bg-slate-50">
-                    <td
-                      colSpan={5}
-                      className="px-2 py-2 text-right font-semibold"
-                    >
-                      Total
-                    </td>
-                    <td className="px-2 py-2 text-right font-bold">
-                      ₹ {total.toFixed(2)}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
 
-            <p className="text-xs text-slate-500 mt-1">
+              <div className="border-t bg-muted/30 px-4 py-2 flex justify-end gap-4 text-sm">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-semibold text-red-600">
+                  ₹ {total.toFixed(2)}
+                </span>
+              </div>
+            </Card>
+
+            <p className="text-xs text-muted-foreground mt-1">
               Stock will be reduced from the newest batches first. This return
               amount reduces what you owe the wholesaler.
             </p>
           </div>
 
-          <label className="block">
-            <span className="block text-xs font-medium text-slate-600 mb-1">
-              Notes
-            </span>
-            <textarea
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full border rounded px-2 py-1"
+              placeholder="Optional"
             />
-          </label>
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded border text-slate-700 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50"
-            >
-              {mutation.isPending ? "Saving…" : "Save Return"}
-            </button>
           </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Saving…" : "Save Return"}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -141,12 +141,17 @@ def _all_time_stats(db: Session) -> AllTimeStats:
         if bal > 0:
             we_owe += bal
 
+        # Planned purchase budget
+    from app.services.purchase_list_service import budget as pl_budget
+    planned = pl_budget(db).total
+
     return AllTimeStats(
         total_purchases=total_purchases,
         total_sales=total_sales,
         gross_profit=gross_profit,
         owed_to_us=owed_to_us,
         we_owe=we_owe,
+        planned_purchase_budget=planned
     )
 
 
